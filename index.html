@@ -64,14 +64,14 @@ header{display:flex;align-items:baseline;gap:1.4vw;margin-bottom:1.6vh}
 @keyframes rise{from{opacity:0;transform:translateY(2.4vh)}to{opacity:1;transform:none}}
 
 /* ---------- tela 1: KPIs ---------- */
-.kpi-grid{flex:1;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:1fr 1fr;gap:1.6vh 1vw}
+.kpi-grid{flex:1;display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:1fr 1fr;gap:1.6vh .8vw}
 .kpi{background:linear-gradient(160deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:1.6vh;
   padding:2.6vh 1.8vw;display:flex;flex-direction:column;position:relative;overflow:hidden}
 .kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:.5vh;background:var(--ac,linear-gradient(90deg,var(--blue),transparent))}
 .kpi .lbl{font-size:2.2vh;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);display:flex;align-items:center;gap:.7vw}
 .kpi .ico{font-size:2.6vh}
 .kpi .today{flex:1;display:flex;align-items:center;gap:1vw;min-height:0}
-.kpi .today .v{font-family:var(--num);font-weight:800;font-size:11.5vh;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:.01em}
+.kpi .today .v{font-family:var(--num);font-weight:800;font-size:10.5vh;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:.01em}
 .kpi .today .tag{font-size:1.9vh;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;align-self:flex-end;margin-bottom:2vh}
 .kpi .acum{display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid var(--line);padding-top:1.4vh}
 .kpi .acum .a-lbl{font-size:1.8vh;color:var(--dim);letter-spacing:.08em;text-transform:uppercase}
@@ -280,9 +280,17 @@ function render(){
   const diario = (DATA.diario||[]).filter(d=>d.contest_code===CONTEST).slice(-14);
 
   /* --- tela 1 --- */
+  const receitaTotal = (k.arrecadado_acum||0) + (k.receita_elite_acum||0);
+  const roiTotal = k.invest_acum>0 ? receitaTotal/k.invest_acum : null;
+  const roiLt    = k.invest_acum>0 ? (k.arrecadado_acum||0)/k.invest_acum : null;
+  const fmtX = r => r==null ? '—' : r.toLocaleString('pt-BR',{maximumFractionDigits:2})+'x';
+  const roiCol = r => r==null ? 'var(--dim)' : (r>=1 ? 'var(--green)' : (r>=0.7 ? 'var(--amber)' : 'var(--red)'));
   const kpis = [
     {ico:'🛒', lbl:'Matrículas low ticket', hoje:fmtI(k.lt_hoje),        acum:fmtI(k.lt_acum),        ac:'linear-gradient(90deg,var(--blue),transparent)',  col:'var(--blue)'},
     {ico:'💰', lbl:'Arrecadado',            hoje:fmtR(k.arrecadado_hoje), acum:fmtRk(k.arrecadado_acum), ac:'linear-gradient(90deg,var(--green),transparent)', col:'var(--green)', small:true},
+    {ico:'📊', lbl:'Investimento Meta',     hoje:fmtR(k.invest_hoje),    acum:fmtRk(k.invest_acum),   ac:'linear-gradient(90deg,var(--amber),transparent)', col:'var(--amber)', small:true},
+    {ico:'📈', lbl:'ROI do funil',          hoje:fmtX(roiTotal), tag:'com elite', acum:fmtX(roiLt), aLbl:'Só low ticket',
+       ac:'linear-gradient(90deg,'+roiCol(roiTotal)+',transparent)', col:roiCol(roiTotal)},
     {ico:'👥', lbl:'Entraram no grupo',     hoje:fmtI(k.grupo_hoje),     acum:fmtI(k.grupo_acum),     ac:'linear-gradient(90deg,var(--cyan),transparent)',  col:'var(--cyan)'},
     {ico:'📋', lbl:'Respostas na pesquisa', hoje:fmtI(k.pesquisa_hoje),  acum:fmtI(k.pesquisa_acum),  ac:'linear-gradient(90deg,var(--violet),transparent)',col:'var(--violet)'},
     {ico:'🖥️', lbl:'Participação webinário',hoje:fmtI(k.webinar_hoje),   acum:fmtI(k.webinar_acum),   ac:'linear-gradient(90deg,var(--orange),transparent)',col:'var(--orange)'},
@@ -291,8 +299,8 @@ function render(){
   $('kpi-grid').innerHTML = kpis.map(x=>`
     <div class="kpi" style="--ac:${x.ac}">
       <div class="lbl"><span class="ico">${x.ico}</span>${x.lbl}</div>
-      <div class="today"><span class="v" style="color:${x.col};${x.small?'font-size:7.6vh':''}">${x.hoje}</span><span class="tag">hoje</span></div>
-      <div class="acum"><span class="a-lbl">Acumulado</span><span class="a-v">${x.acum}</span></div>
+      <div class="today"><span class="v" style="color:${x.col};${x.small?'font-size:6.8vh':''}">${x.hoje}</span><span class="tag">${x.tag||'hoje'}</span></div>
+      <div class="acum"><span class="a-lbl">${x.aLbl||'Acumulado'}</span><span class="a-v">${x.acum}</span></div>
     </div>`).join('');
 
   /* --- tela 2 --- */
