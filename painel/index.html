@@ -154,6 +154,19 @@ h2.sec{font-family:var(--num);font-weight:700;font-size:18px;letter-spacing:.18e
 .fdesc{font-size:12px;color:var(--dim);margin-left:auto}
 .cpa-note{font-size:12px;color:var(--amber);margin-top:8px;line-height:1.4}
 
+/* ---------- tabela de variantes/páginas ---------- */
+.vwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.vtable{width:100%;min-width:560px;border-collapse:collapse;font-size:14px}
+.vtable th{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);
+  text-align:right;padding:8px 10px;border-bottom:1px solid var(--line)}
+.vtable th:first-child{text-align:left}
+.vtable td{padding:10px;border-bottom:1px solid var(--line);text-align:right;
+  font-family:var(--num);font-weight:700;font-size:17px;font-variant-numeric:tabular-nums}
+.vtable td:first-child{text-align:left;font-family:var(--body);font-weight:700;font-size:14px}
+.vtable tr:last-child td{border-bottom:none}
+.vtag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.08em;padding:2px 7px;border-radius:6px;margin-left:6px;vertical-align:middle}
+.vtag.top{color:var(--green);background:rgba(46,229,107,.12);border:1px solid rgba(46,229,107,.35)}
+
 /* ---------- overlay ---------- */
 #overlay{position:fixed;inset:0;z-index:9;display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px;
   background:rgba(4,7,15,.96);text-align:center;padding:8vw}
@@ -538,6 +551,37 @@ function renderEvento(fid){
   ]).map(kpiHTML).join('');
 
   const feed = (DATA.atividades||[]).filter(a=>a.tipo==='ingresso' && (a.funnel_id ? a.funnel_id===ev.funnel_id : a.contest_code===ev.contest_code)).slice(0,12);
+  /* páginas/variantes: tráfego Meta por página (vendas por página não são
+     rastreáveis — UTM não chega no checkout; ranking pelo lado do tráfego) */
+  const VAR_NOME = v => v==='quizz' ? 'Quiz' : (/^pv\d+$/.test(v) ? 'Página '+v.slice(2) : v);
+  const varAgg = {};
+  (DATA.variantes||[]).filter(v=>String(v.funnel_id)===String(ev.funnel_id) && (!r || (v.dia>=r.ini && v.dia<=r.fim)))
+    .forEach(v=>{
+      const a = varAgg[v.variant] = varAgg[v.variant]||{gasto:0,impressoes:0,cliques:0};
+      a.gasto+=v.gasto||0; a.impressoes+=v.impressoes||0; a.cliques+=v.cliques||0;
+    });
+  const vars = Object.entries(varAgg).map(([variant,a])=>({variant,...a,
+    ctr: a.impressoes>0 ? 100*a.cliques/a.impressoes : null,
+    cpc: a.cliques>0 ? a.gasto/a.cliques : null})).sort((a,b)=>b.gasto-a.gasto);
+  const totGasto = vars.reduce((s,v)=>s+v.gasto,0);
+  const bestCtr = vars.length>1 ? Math.max(...vars.filter(v=>v.ctr!=null).map(v=>v.ctr)) : null;
+  const bestCpc = vars.length>1 ? Math.min(...vars.filter(v=>v.cpc!=null).map(v=>v.cpc)) : null;
+  const varHTML = vars.length ? `<div class="card"><h3>📄 Páginas · tráfego Meta ${r?'· no período':'· todo o período'}</h3>
+    <div class="vwrap"><table class="vtable">
+      <tr><th>Página</th><th>Gasto</th><th>% verba</th><th>Impressões</th><th>Cliques</th><th>CTR</th><th>CPC</th></tr>
+      ${vars.map(v=>`<tr>
+        <td>${esc(VAR_NOME(v.variant))}${v.ctr===bestCtr?'<span class="vtag top">melhor CTR</span>':''}${v.cpc===bestCpc?'<span class="vtag top">menor CPC</span>':''}</td>
+        <td>${fmtRk(v.gasto)}</td>
+        <td>${totGasto>0?pct(v.gasto,totGasto):'—'}</td>
+        <td>${fmtI(v.impressoes)}</td>
+        <td>${fmtI(v.cliques)}</td>
+        <td class="${v.ctr===bestCtr?'good':''}">${v.ctr!=null?v.ctr.toLocaleString('pt-BR',{maximumFractionDigits:2})+'%':'—'}</td>
+        <td class="${v.cpc===bestCpc?'good':''}">${v.cpc!=null?fmtR(v.cpc):'—'}</td>
+      </tr>`).join('')}
+    </table></div>
+    <div class="cpa-note">ℹ Ranking pelo tráfego (Meta). Vendas por página ainda não são rastreáveis — as UTMs não chegam ao checkout da Hubla.</div>
+  </div>` : '';
+
   // CPA: só dias FECHADOS entram na linha — o gasto do Meta chega em cargas
   // periódicas e o dia corrente ficaria com CPA artificialmente baixo.
   const hj = hojeBRT();
@@ -556,6 +600,7 @@ function renderEvento(fid){
     <div class="card"><h3>🎯 CPA por ingresso dia a dia · dias fechados ${tFech.cpa!=null?'· médio '+fmtR(tFech.cpa):''}</h3>
       <div class="chart-scroll">${chartSVG(cpaRows,'#ffb020','#ffcc4d','#140b09',v=>'R$'+Math.round(v))}</div>
       ${cpaHj?`<div class="cpa-note">⚠ Hoje (parcial): ${fmtR(cpaHj.valor)} — o gasto do Meta é carregado em sincronizações periódicas, então o CPA de hoje ainda vai subir. O dia entra na linha quando fechar.</div>`:''}</div>
+    ${varHTML}
     ${r?'':`<div><h2 class="sec">📅 Semana atual</h2><div class="wgrid">
       <div class="wcard" style="--ac:var(--orange)"><span class="k">Ingressos</span><span class="v" style="color:var(--orange)">${fmtI(evw.ingressos_semana)}</span></div>
       <div class="wcard" style="--ac:var(--green)"><span class="k">Arrecadado</span><span class="v" style="color:var(--green)">${fmtRk(evw.arrecadado_semana)}</span></div>
@@ -615,6 +660,9 @@ DEMO_DATA.serie = [
   ...DEMO_DATA.diario.map((d,i)=>({escopo:'perpetuo',chave:'PRF',dia:d.dia,vendas:d.matriculas,arrecadado:Math.round(d.matriculas*28),invest:600+((i*137)%500),grupo:Math.round(d.matriculas*.55),pesquisa:Math.round(d.matriculas*.4),webinar:(i%4===3)?12:0,elite:(i%5===4)?1:0,receita_elite:(i%5===4)?1200:0})),
   ...DEMO_DATA.evento_diario.map((d,i)=>({escopo:'evento',chave:'demo-ev',dia:d.dia,vendas:d.ingressos,arrecadado:Math.round(d.ingressos*19.9),invest:400+((i*211)%700),grupo:0,pesquisa:0,webinar:0,elite:0,receita_elite:0})),
 ];
+DEMO_DATA.variantes = DEMO_DATA.evento_diario.flatMap((d,i)=>
+  [['pv04',.38],['pv05',.25],['pv03',.16],['pv02',.11],['pv06',.06],['quizz',.04]].map(([v,p])=>
+    ({funnel_id:'demo-ev',variant:v,dia:d.dia,gasto:Math.round((400+((i*211)%700))*p),impressoes:Math.round(4000*p*(1+i*.1)),cliques:Math.round(120*p*(1+i*.08))})));
 DEMO_DATA.isca_diaria = DEMO_DATA.diario.flatMap((d,i)=>
   [['plano_quiz',.4],['plano_pagina',.25],['mapas',.15],['raiox',.2]].map(([b,p])=>
     ({bucket:b,dia:d.dia,vendas:Math.round(d.matriculas*p),arrecadado:Math.round(d.matriculas*p*28),invest:Math.round((600+((i*137)%500))*p)})));
