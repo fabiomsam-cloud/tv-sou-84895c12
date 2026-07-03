@@ -123,9 +123,17 @@ footer{display:flex;align-items:center;gap:2vw;margin-top:1.8vh;background:linea
 #insights{flex:1;display:flex;gap:2.4vw;overflow:hidden}
 .ins{display:flex;align-items:center;gap:.6vw;font-size:2.3vh;font-weight:500;white-space:nowrap}
 .ins b{font-weight:700}
-.dots{display:flex;gap:.6vw;margin-left:auto}
-.dots span{width:1.4vh;height:1.4vh;border-radius:50%;background:rgba(125,140,171,.3);transition:.3s}
+.dots{display:flex;gap:.6vw;align-items:center}
+.dots span{width:1.4vh;height:1.4vh;border-radius:50%;background:rgba(125,140,171,.3);transition:.3s;cursor:pointer}
 .dots span.on{background:var(--cyan);box-shadow:0 0 1.4vh var(--cyan)}
+.ctls{display:flex;gap:.5vw;margin-left:auto;align-items:center}
+.ctls button{background:rgba(125,140,171,.12);border:1px solid var(--line);border-radius:1vh;color:var(--txt);
+  font-size:2.4vh;line-height:1;padding:1vh 1vw;cursor:pointer;transition:.2s;font-family:var(--body)}
+.ctls button:hover,.ctls button:focus{background:rgba(39,211,245,.18);border-color:var(--cyan);outline:none}
+#btn-play.paused{background:rgba(255,176,32,.2);border-color:var(--amber);color:var(--amber)}
+#pause-chip{display:none;align-items:center;gap:.5vw;font-size:1.7vh;font-weight:700;letter-spacing:.12em;color:var(--amber);
+  border:1px solid rgba(255,176,32,.4);border-radius:1vh;padding:.6vh .8vw;text-transform:uppercase}
+body.paused #pause-chip{display:flex}
 
 /* ---------- overlay ---------- */
 #overlay{position:fixed;inset:0;z-index:9;display:none;align-items:center;justify-content:center;flex-direction:column;gap:2vh;
@@ -141,6 +149,7 @@ footer{display:flex;align-items:center;gap:2vw;margin-top:1.8vh;background:linea
     <div class="brand">SOU<em>·DATA</em></div>
     <div id="screen-title">Visão Geral</div>
     <div class="hd-right">
+      <div id="pause-chip">⏸ Pausado</div>
       <div id="status"><span class="dot"></span><span id="status-txt">ao vivo</span></div>
       <div id="hd-date"></div>
       <div id="clock">--:--</div>
@@ -181,7 +190,12 @@ footer{display:flex;align-items:center;gap:2vw;margin-top:1.8vh;background:linea
   <footer>
     <div class="f-title">💡 INSIGHTS</div>
     <div id="insights"></div>
-    <div class="dots" id="dots"></div>
+    <div class="ctls">
+      <button id="btn-prev" title="Tela anterior (←)">‹</button>
+      <button id="btn-play" title="Pausar / retomar (OK ou espaço)">⏸</button>
+      <button id="btn-next" title="Próxima tela (→)">›</button>
+      <div class="dots" id="dots"></div>
+    </div>
   </footer>
 </div>
 
@@ -220,17 +234,39 @@ function tickClock(){
 }
 tickClock(); setInterval(tickClock, 15000);
 
-/* ================= rotação ================= */
+/* ================= rotação e controles ================= */
 const screens = [...document.querySelectorAll('.screen')];
 $('dots').innerHTML = screens.map((_,i)=>'<span'+(i===0?' class="on"':'')+'></span>').join('');
-let cur = 0;
+let cur = 0, paused = false, timer = null;
 function show(i){
-  cur = i % screens.length;
+  cur = ((i % screens.length) + screens.length) % screens.length;
   screens.forEach((s,j)=>s.classList.toggle('on', j===cur));
   [...$('dots').children].forEach((d,j)=>d.classList.toggle('on', j===cur));
   $('screen-title').textContent = screens[cur].dataset.title;
 }
-setInterval(()=>show(cur+1), ROTATE_MS);
+function startTimer(){
+  clearInterval(timer);
+  if(!paused) timer = setInterval(()=>show(cur+1), ROTATE_MS);
+}
+function goTo(i){ show(i); startTimer(); }          // navegação manual reinicia o relógio
+function setPaused(p){
+  paused = p;
+  document.body.classList.toggle('paused', paused);
+  $('btn-play').textContent = paused ? '▶' : '⏸';
+  $('btn-play').classList.toggle('paused', paused);
+  startTimer();
+}
+$('btn-next').addEventListener('click', ()=>goTo(cur+1));
+$('btn-prev').addEventListener('click', ()=>goTo(cur-1));
+$('btn-play').addEventListener('click', ()=>setPaused(!paused));
+[...$('dots').children].forEach((d,i)=>d.addEventListener('click', ()=>goTo(i)));
+document.addEventListener('keydown', e=>{
+  if(e.target.tagName==='BUTTON' && (e.key==='Enter' || e.key===' ')) return; // botão focado já trata
+  if(e.key==='ArrowRight'){ goTo(cur+1); e.preventDefault(); }
+  else if(e.key==='ArrowLeft'){ goTo(cur-1); e.preventDefault(); }
+  else if(e.key===' ' || e.key==='Enter' || e.key.toLowerCase()==='p'){ setPaused(!paused); e.preventDefault(); }
+});
+startTimer();
 
 /* ================= render ================= */
 let DATA = null;
