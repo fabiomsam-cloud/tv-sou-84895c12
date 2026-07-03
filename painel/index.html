@@ -152,6 +152,7 @@ h2.sec{font-family:var(--num);font-weight:700;font-size:18px;letter-spacing:.18e
 .frange input{background:var(--panel2);border:1px solid var(--line);border-radius:9px;color:var(--txt);
   font-family:var(--body);font-size:13px;padding:6px 8px;color-scheme:dark}
 .fdesc{font-size:12px;color:var(--dim);margin-left:auto}
+.cpa-note{font-size:12px;color:var(--amber);margin-top:8px;line-height:1.4}
 
 /* ---------- overlay ---------- */
 #overlay{position:fixed;inset:0;z-index:9;display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px;
@@ -528,7 +529,7 @@ function renderEvento(fid){
     {ico:'🎟', lbl:'Ingressos',  hoje:fmtI(ev.lt_hoje), acum:fmtI(ev.lt_acum), ac:'var(--orange)', col:'var(--orange)'},
     {ico:'💰', lbl:'Arrecadado', hoje:fmtR(ev.arrecadado_hoje), acum:fmtRk(ev.arrecadado_acum), ac:'var(--green)', col:'var(--green)'},
     {ico:'📊', lbl:'Investido',  hoje:fmtR(ev.invest_hoje), acum:fmtRk(ev.invest_acum), ac:'var(--amber)', col:'var(--amber)'},
-    {ico:'🎯', lbl:'CPA ingresso', hoje:cpaHoje!=null?fmtR(cpaHoje):'—', acum:cpaAcum!=null?fmtR(cpaAcum):'—', ac:'var(--amber)', col:'var(--amber)'},
+    {ico:'🎯', lbl:'CPA ingresso', hoje:cpaHoje!=null?fmtR(cpaHoje):'—', tag:'hoje (parcial)', acum:cpaAcum!=null?fmtR(cpaAcum):'—', ac:'var(--amber)', col:'var(--amber)'},
     {ico:'📈', lbl:'ROI',        hoje:fmtX(roiT), tag:'com elite', acum:fmtX(roiL), aLbl:'só ingr.', ac:roiCol(roiT), col:roiCol(roiT)},
     {ico:'👥', lbl:'Grupo',      hoje:fmtI(ev.grupo_hoje), acum:fmtI(ev.grupo_acum), ac:'var(--cyan)', col:'var(--cyan)'},
     {ico:'📋', lbl:'Pesquisa',   hoje:fmtI(ev.pesquisa_hoje), acum:fmtI(ev.pesquisa_acum), ac:'var(--violet)', col:'var(--violet)'},
@@ -537,7 +538,13 @@ function renderEvento(fid){
   ]).map(kpiHTML).join('');
 
   const feed = (DATA.atividades||[]).filter(a=>a.tipo==='ingresso' && (a.funnel_id ? a.funnel_id===ev.funnel_id : a.contest_code===ev.contest_code)).slice(0,12);
-  const cpaRows = cpaSerie(rows);
+  // CPA: só dias FECHADOS entram na linha — o gasto do Meta chega em cargas
+  // periódicas e o dia corrente ficaria com CPA artificialmente baixo.
+  const hj = hojeBRT();
+  const rowsFech = rows.filter(s=>s.dia<hj);
+  const cpaRows = cpaSerie(rowsFech);
+  const tFech = totais(rowsFech);
+  const cpaHj = cpaSerie(rows.filter(s=>s.dia===hj))[0];
 
   $('main').innerHTML = `<div class="det evento">
     <div class="det-hero evento"><h1>🎟 ${esc(ev.funnel_name)}</h1>
@@ -546,8 +553,9 @@ function renderEvento(fid){
     <div class="kgrid">${kpis}</div>
     <div class="card"><h3>Ingressos dia a dia · ${r?'no período':'todo o período'}</h3>
       <div class="chart-scroll">${chartSVG(rows.map(d=>({dia:d.dia,valor:d.vendas||0})),'#ff8a3d','#ffab6b','#140b09')}</div></div>
-    <div class="card"><h3>🎯 CPA por ingresso dia a dia ${t.cpa!=null?'· médio '+fmtR(t.cpa):''}</h3>
-      <div class="chart-scroll">${chartSVG(cpaRows,'#ffb020','#ffcc4d','#140b09',v=>'R$'+Math.round(v))}</div></div>
+    <div class="card"><h3>🎯 CPA por ingresso dia a dia · dias fechados ${tFech.cpa!=null?'· médio '+fmtR(tFech.cpa):''}</h3>
+      <div class="chart-scroll">${chartSVG(cpaRows,'#ffb020','#ffcc4d','#140b09',v=>'R$'+Math.round(v))}</div>
+      ${cpaHj?`<div class="cpa-note">⚠ Hoje (parcial): ${fmtR(cpaHj.valor)} — o gasto do Meta é carregado em sincronizações periódicas, então o CPA de hoje ainda vai subir. O dia entra na linha quando fechar.</div>`:''}</div>
     ${r?'':`<div><h2 class="sec">📅 Semana atual</h2><div class="wgrid">
       <div class="wcard" style="--ac:var(--orange)"><span class="k">Ingressos</span><span class="v" style="color:var(--orange)">${fmtI(evw.ingressos_semana)}</span></div>
       <div class="wcard" style="--ac:var(--green)"><span class="k">Arrecadado</span><span class="v" style="color:var(--green)">${fmtRk(evw.arrecadado_semana)}</span></div>
