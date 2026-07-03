@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#04070f">
+<title>SOU · Painel dos Funis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;700;800&family=Archivo:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#04070f; --panel:#0a1020; --panel2:#0d1526;
+  --line:rgba(120,160,255,.10); --txt:#eef3ff; --dim:#7d8cab;
+  --blue:#2f7bff; --cyan:#27d3f5; --green:#2ee56b; --amber:#ffb020;
+  --red:#ff4d5e; --violet:#9d6bff; --orange:#ff8a3d; --gold:#ffcc4d;
+  --num:'Big Shoulders Display',sans-serif; --body:'Archivo',sans-serif;
+  --ev-panel:#1d1210; --ev-panel2:#140b09; --ev-line:rgba(255,150,90,.16);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--txt);font-family:var(--body);min-height:100vh}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:
+    radial-gradient(ellipse 70% 40% at 15% -5%, rgba(47,123,255,.13), transparent 60%),
+    radial-gradient(ellipse 55% 35% at 95% 105%, rgba(46,229,107,.07), transparent 60%),
+    radial-gradient(ellipse 45% 30% at 85% -5%, rgba(157,107,255,.06), transparent 60%);}
+a{color:inherit;text-decoration:none}
+button{font-family:var(--body)}
+
+/* ---------- header ---------- */
+header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;
+  padding:14px 16px;background:rgba(4,7,15,.88);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.brand{font-family:var(--num);font-weight:800;font-size:22px;letter-spacing:.12em;color:var(--blue);white-space:nowrap}
+.brand em{font-style:normal;color:var(--txt)}
+#back{display:none;background:rgba(125,140,171,.12);border:1px solid var(--line);border-radius:10px;
+  color:var(--txt);font-size:18px;line-height:1;padding:8px 14px;cursor:pointer}
+#back.show{display:block}
+.hd-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+#upd{font-size:12px;color:var(--dim);white-space:nowrap}
+#refresh{background:rgba(39,211,245,.1);border:1px solid rgba(39,211,245,.3);border-radius:10px;
+  color:var(--cyan);font-size:16px;line-height:1;padding:8px 12px;cursor:pointer}
+#refresh.spin{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#sdot{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green)}
+#sdot.err{background:var(--red);box-shadow:0 0 8px var(--red)}
+
+main{position:relative;z-index:1;max-width:1280px;margin:0 auto;padding:18px 16px 60px}
+
+/* ---------- hero ---------- */
+.hero{background:linear-gradient(150deg,#0e1c3d,#0a1020 65%);border:1px solid rgba(47,123,255,.25);
+  border-radius:18px;padding:22px 20px;margin-bottom:20px;position:relative;overflow:hidden}
+.hero::after{content:'';position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse 60% 80% at 85% 20%, rgba(47,123,255,.18), transparent 60%)}
+.hero h1{font-family:var(--num);font-weight:800;font-size:26px;letter-spacing:.14em;text-transform:uppercase}
+.hero h1 span{color:var(--blue)}
+.hero .sub{color:var(--dim);font-size:13px;margin-top:2px}
+.hero-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:18px;position:relative;z-index:1}
+.hstat .h-lbl{font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.hstat .h-v{font-family:var(--num);font-weight:800;font-size:34px;line-height:1.1;font-variant-numeric:tabular-nums}
+
+/* ---------- layout home ---------- */
+.home-grid{display:flex;flex-direction:column;gap:22px}
+h2.sec{font-family:var(--num);font-weight:700;font-size:18px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);
+  margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.funis{display:grid;grid-template-columns:1fr;gap:12px}
+
+/* ---------- card de funil ---------- */
+.fcard{display:block;background:linear-gradient(160deg,var(--panel2),var(--panel));border:1px solid var(--line);
+  border-left:4px solid var(--blue);border-radius:14px;padding:16px;transition:.2s;cursor:pointer}
+.fcard:active{transform:scale(.985)}
+.fcard.evento{border-left-color:var(--orange);background:linear-gradient(160deg,var(--ev-panel),var(--ev-panel2));border-color:var(--ev-line);border-left-color:var(--orange)}
+.fcard .f-top{display:flex;align-items:center;gap:8px}
+.fcard .f-name{font-family:var(--num);font-weight:700;font-size:20px;letter-spacing:.04em;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fcard .f-badge{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;padding:4px 8px;border-radius:7px;white-space:nowrap}
+.fcard .f-badge.perp{color:var(--cyan);background:rgba(39,211,245,.1);border:1px solid rgba(39,211,245,.3)}
+.fcard .f-badge.ev{color:var(--orange);background:rgba(255,138,61,.1);border:1px solid rgba(255,138,61,.35)}
+.fcard .f-arrow{color:var(--dim);font-size:20px}
+.fcard .f-nums{display:flex;gap:18px;margin-top:12px;align-items:flex-end;flex-wrap:wrap}
+.fcard .fn .k{font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.fcard .fn .v{font-family:var(--num);font-weight:800;font-size:26px;line-height:1.1;font-variant-numeric:tabular-nums}
+.fcard .spark{margin-left:auto;align-self:center}
+.good{color:var(--green)}.warn{color:var(--amber)}.bad{color:var(--red)}
+
+/* ---------- feed ---------- */
+.feed{background:linear-gradient(160deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:14px;padding:14px}
+.feed .item{display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid var(--line);font-size:14px}
+.feed .item:last-child{border-bottom:none}
+.feed .ic{font-size:17px;width:24px;text-align:center}
+.feed .who{font-weight:700}
+.feed .what{color:var(--dim);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.feed .when{color:var(--dim);font-size:12px;white-space:nowrap}
+.feed .item.elite .who,.feed .item.elite .what{color:var(--gold)}
+
+/* ---------- detalhe ---------- */
+.det{display:flex;flex-direction:column;gap:22px}
+.det-hero{border-radius:18px;padding:18px 20px;border:1px solid rgba(47,123,255,.25);
+  background:linear-gradient(150deg,#0e1c3d,#0a1020 65%)}
+.det-hero.evento{border-color:rgba(255,138,61,.35);background:linear-gradient(150deg,#2b1409,#140b09 65%)}
+.det-hero h1{font-family:var(--num);font-weight:800;font-size:24px;letter-spacing:.06em}
+.det-hero .sub{color:var(--dim);font-size:13px;margin-top:2px}
+.kgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.kpi{background:linear-gradient(160deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:13px;
+  padding:12px 14px;position:relative;overflow:hidden}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--ac,var(--blue))}
+.evento .kpi{background:linear-gradient(160deg,var(--ev-panel),var(--ev-panel2));border-color:var(--ev-line)}
+.kpi .lbl{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.kpi .v{font-family:var(--num);font-weight:800;font-size:32px;line-height:1.15;font-variant-numeric:tabular-nums;margin-top:4px}
+.kpi .a{display:flex;justify-content:space-between;font-size:12px;color:var(--dim);margin-top:6px;border-top:1px solid var(--line);padding-top:6px}
+.kpi .a b{color:var(--txt);font-family:var(--num);font-size:16px;font-weight:700}
+
+/* funil de conversão em barras */
+.steps{display:flex;flex-direction:column;gap:8px}
+.step{position:relative;background:rgba(125,140,171,.08);border-radius:9px;overflow:hidden;padding:10px 12px}
+.step .bar{position:absolute;inset:0;background:linear-gradient(90deg,var(--c1),var(--c2));opacity:.85;border-radius:9px;
+  transform-origin:left;width:var(--w)}
+.step .in{position:relative;display:flex;align-items:baseline;gap:10px}
+.step .s-lbl{font-size:13px;font-weight:600;flex:1;min-width:0}
+.step .s-v{font-family:var(--num);font-weight:800;font-size:20px;font-variant-numeric:tabular-nums}
+.step .s-p{font-size:12px;color:rgba(255,255,255,.75);width:110px;text-align:right}
+
+/* iscas */
+.igrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.isca{background:linear-gradient(160deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:13px;padding:12px 14px;border-top:3px solid var(--ac)}
+.isca h4{font-family:var(--num);font-weight:700;font-size:17px;letter-spacing:.04em}
+.isca .rows{margin-top:8px;display:flex;flex-direction:column;gap:5px}
+.isca .r{display:flex;justify-content:space-between;font-size:13px}
+.isca .r .k{color:var(--dim)}
+.isca .r .w{font-family:var(--num);font-weight:700;font-size:16px;font-variant-numeric:tabular-nums}
+
+/* gráfico + semana */
+.card{background:linear-gradient(160deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:14px;padding:14px}
+.evento .card{background:linear-gradient(160deg,var(--ev-panel),var(--ev-panel2));border-color:var(--ev-line)}
+.card h3{font-size:12px;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px}
+.chart-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.chart-scroll svg{display:block;min-width:560px;width:100%;height:auto}
+.wgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.wcard{background:linear-gradient(160deg,var(--panel2),var(--panel));border:1px solid var(--line);border-left:4px solid var(--ac,var(--blue));
+  border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:2px}
+.evento .wcard{background:linear-gradient(160deg,var(--ev-panel),var(--ev-panel2));border-color:var(--ev-line);border-left-color:var(--ac)}
+.wcard .k{font-size:11px;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:.08em}
+.wcard .v{font-family:var(--num);font-weight:800;font-size:26px;font-variant-numeric:tabular-nums}
+
+/* ---------- overlay ---------- */
+#overlay{position:fixed;inset:0;z-index:9;display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px;
+  background:rgba(4,7,15,.96);text-align:center;padding:8vw}
+#overlay.show{display:flex}
+#overlay h2{font-family:var(--num);font-size:28px;letter-spacing:.1em}
+#overlay p{color:var(--dim);font-size:15px;max-width:520px;line-height:1.5}
+
+/* ---------- responsivo ---------- */
+@media(min-width:700px){
+  .hero-grid{grid-template-columns:repeat(5,1fr)}
+  .funis{grid-template-columns:repeat(2,1fr)}
+  .kgrid{grid-template-columns:repeat(4,1fr)}
+  .igrid{grid-template-columns:repeat(4,1fr)}
+  .wgrid{grid-template-columns:repeat(5,1fr)}
+  .hero h1{font-size:32px}
+}
+@media(min-width:1100px){
+  .home-grid{display:grid;grid-template-columns:1fr 340px;align-items:start}
+  .home-left{display:flex;flex-direction:column;gap:22px}
+  .home-feed{position:sticky;top:76px}
+}
+</style>
+</head>
+<body>
+<header>
+  <button id="back" title="Voltar">‹</button>
+  <a class="brand" id="home-link">SOU<em>·DATA</em></a>
+  <div class="hd-right">
+    <span id="sdot"></span>
+    <span id="upd">carregando…</span>
+    <button id="refresh" title="Atualizar agora">⟳</button>
+  </div>
+</header>
+<main id="main"></main>
+
+<div id="overlay">
+  <h2>AGUARDANDO DADOS</h2>
+  <p id="overlay-msg">Abra o painel com o link completo que contém a chave de acesso (…?k=CHAVE).</p>
+</div>
+
+<script>
+'use strict';
+/* ================= CONFIG ================= */
+const API = 'https://dqpxugdhlgafvddavzzp.supabase.co/functions/v1/dashboard-app';
+const FETCH_MS = 5*60*1000;
+const qs = new URLSearchParams(location.search);
+const KEY  = qs.get('k') || '';
+const DEMO = qs.has('demo');
+const NAMES_ISCA = {plano_quiz:'Plano Quizz', plano_pagina:'Plano Página', mapas:'Mapas Mentais', raiox:'Raio X'};
+const AC_ISCA = {plano_quiz:'var(--violet)', plano_pagina:'var(--green)', mapas:'var(--blue)', raiox:'var(--orange)'};
+
+/* ================= helpers ================= */
+const $ = id => document.getElementById(id);
+const fmtI = n => (n??0).toLocaleString('pt-BR');
+const fmtR = n => 'R$ ' + (n??0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtRk = n => { n=n??0; return n>=100000 ? 'R$ '+(n/1000).toLocaleString('pt-BR',{maximumFractionDigits:0})+' mil' : (n>=10000 ? 'R$ '+(n/1000).toLocaleString('pt-BR',{maximumFractionDigits:1})+' mil' : fmtR(n)); };
+const pct = (a,b) => b>0 ? (100*a/b).toLocaleString('pt-BR',{maximumFractionDigits:1})+'%' : '—';
+const fmtX = r => r==null ? '—' : r.toLocaleString('pt-BR',{maximumFractionDigits:2})+'x';
+const roiCol = r => r==null ? 'var(--dim)' : (r>=1 ? 'var(--green)' : (r>=0.7 ? 'var(--amber)' : 'var(--red)'));
+const esc = s => String(s??'').replace(/[<>&"]/g, c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+const MINUSC = new Set(['de','da','do','das','dos','e']);
+const titulo = s => String(s??'').toLowerCase().split(/\s+/).map(w=>MINUSC.has(w)?w:(w.length<=3&&/^[a-z0-9-]+$/.test(w)&&s.includes(w.toUpperCase())?w.toUpperCase():w.charAt(0).toUpperCase()+w.slice(1))).join(' ');
+function tempoRel(iso){
+  const s = Math.max(0,(Date.now()-new Date(iso).getTime())/1000);
+  if(s<90) return 'agora';
+  if(s<3600) return 'há '+Math.round(s/60)+' min';
+  if(s<86400) return 'há '+Math.round(s/3600)+' h';
+  return 'há '+Math.round(s/86400)+' d';
+}
+
+/* ================= gráfico (adaptado da TV) ================= */
+function chartSVG(serie, cor, corLinha, corFundo){
+  const W=1000,H=380,PB=44,PT=30,PL=34,PR=34;
+  if(!serie.length) return '<svg viewBox="0 0 1000 380"></svg>';
+  const max = Math.max(...serie.map(d=>d.valor),1);
+  const n = serie.length;
+  const x = i => PL + (n===1?((W-PL-PR)/2):(i*(W-PL-PR)/(n-1)));
+  const y = v => PT + (H-PT-PB)*(1-v/max);
+  const pts = serie.map((d,i)=>[x(i),y(d.valor)]);
+  const line = pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+  const area = line + ` L ${pts[n-1][0].toFixed(1)} ${H-PB} L ${pts[0][0].toFixed(1)} ${H-PB} Z`;
+  const step = Math.max(1, Math.ceil(n/14));
+  const vStep = n>24 ? step : 1;
+  const fs = n>24 ? 20 : 24;
+  const gid = 'g'+Math.abs(cor.split('').reduce((a,c)=>a+c.charCodeAt(0),0))+n;
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+    <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="${cor}" stop-opacity=".45"/><stop offset="1" stop-color="${cor}" stop-opacity="0"/>
+    </linearGradient></defs>
+    <path d="${area}" fill="url(#${gid})"/>
+    <path d="${line}" fill="none" stroke="${corLinha}" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
+    ${pts.map((p,i)=>{
+      const showV = i%vStep===0 || i===n-1;
+      const showD = i%step===0 || i===n-1;
+      return `
+      <circle cx="${p[0]}" cy="${p[1]}" r="${n>24?5:7}" fill="${corFundo}" stroke="${corLinha}" stroke-width="3.5"/>
+      ${showV?`<text x="${p[0]}" y="${p[1]-16}" text-anchor="middle" font-size="${fs}" font-weight="700" fill="#eef3ff" font-family="Archivo">${serie[i].valor}</text>`:''}
+      ${showD?`<text x="${p[0]}" y="${H-14}" text-anchor="middle" font-size="18" fill="#7d8cab" font-family="Archivo">${serie[i].dia.slice(8,10)}/${serie[i].dia.slice(5,7)}</text>`:''}`;
+    }).join('')}</svg>`;
+}
+function sparkSVG(vals, cor){
+  if(!vals.length) return '';
+  const W=110,H=30,max=Math.max(...vals,1);
+  const x=i=>vals.length===1?W/2:i*W/(vals.length-1), y=v=>2+(H-4)*(1-v/max);
+  const d=vals.map((v,i)=>(i?'L':'M')+x(i).toFixed(1)+' '+y(v).toFixed(1)).join(' ');
+  return `<svg class="spark" width="110" height="30" viewBox="0 0 ${W} ${H}"><path d="${d}" fill="none" stroke="${cor}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+}
+
+/* ================= feed ================= */
+const FEED_IC = {low_ticket:'🛒', ingresso:'🎟', elite:'👑'};
+function feedHTML(items, titulo2){
+  if(!items.length) return '';
+  return `<div><h2 class="sec">⚡ ${titulo2||'Vendas ao vivo'}</h2><div class="feed">${items.map(a=>`
+    <div class="item ${a.tipo==='elite'?'elite':''}">
+      <span class="ic">${FEED_IC[a.tipo]||'🛒'}</span>
+      <span class="who">${esc(a.primeiro_nome)}</span>
+      <span class="what">${esc(titulo(a.produto))}</span>
+      <span class="when">${tempoRel(a.paid_at)}</span>
+    </div>`).join('')}</div></div>`;
+}
+
+/* ================= renders ================= */
+let DATA = null, lastOk = 0;
+
+function paineis(){
+  const ps = (DATA.kpis||[]).map(k=>({tipo:'perpetuo', id:'p-'+k.contest_code, k}));
+  const es = (DATA.evento||[]).map(e=>({tipo:'evento', id:'e-'+(e.funnel_id||e.funnel_name), k:e}));
+  return [...ps, ...es];
+}
+
+function renderHome(){
+  const ps = paineis();
+  let arre=0, inv=0, hoje=0, elite=0;
+  ps.forEach(p=>{arre += (p.k.arrecadado_acum||0)+(p.k.receita_elite_acum||0); inv += p.k.invest_acum||0; hoje += p.k.lt_hoje||0; elite += p.k.elite_acum||0;});
+  const roi = inv>0 ? arre/inv : null;
+
+  const cards = ps.map(p=>{
+    const k = p.k, evc = p.tipo==='evento';
+    const serie = evc
+      ? (DATA.evento_diario||[]).filter(d=>d.funnel_id ? d.funnel_id===k.funnel_id : d.funnel_name===k.funnel_name).slice(-14).map(d=>d.ingressos)
+      : (DATA.diario||[]).filter(d=>d.contest_code===k.contest_code).slice(-14).map(d=>d.matriculas);
+    const r = k.invest_acum>0 ? ((k.arrecadado_acum||0)+(k.receita_elite_acum||0))/k.invest_acum : null;
+    const nome = evc ? k.funnel_name : ('Funil Perpétuo · '+k.contest_code);
+    return `<a class="fcard ${evc?'evento':''}" href="#/f/${p.id}">
+      <div class="f-top">
+        <span class="f-name">${esc(nome)}</span>
+        <span class="f-badge ${evc?'ev':'perp'}">${evc?'🎟 evento':'∞ perpétuo'}</span>
+        <span class="f-arrow">›</span>
+      </div>
+      <div class="f-nums">
+        <div class="fn"><div class="k">${evc?'Ingressos':'Matrículas'} hoje</div><div class="v" style="color:${evc?'var(--orange)':'var(--blue)'}">${fmtI(k.lt_hoje)}</div></div>
+        <div class="fn"><div class="k">Acumulado</div><div class="v">${fmtI(k.lt_acum)}</div></div>
+        <div class="fn"><div class="k">Arrecadado</div><div class="v" style="color:var(--green);font-size:20px">${fmtRk((k.arrecadado_acum||0)+(k.receita_elite_acum||0))}</div></div>
+        <div class="fn"><div class="k">ROI</div><div class="v" style="color:${roiCol(r)};font-size:20px">${fmtX(r)}</div></div>
+        ${sparkSVG(serie, evc?'#ff8a3d':'#5ea0ff')}
+      </div>
+    </a>`;
+  }).join('');
+
+  $('main').innerHTML = `
+  <div class="hero">
+    <h1>GRUPO <span>SOU</span> · TODOS OS FUNIS</h1>
+    <div class="sub">Dados ao vivo do SOU Data Core · ${ps.length} ${ps.length===1?'funil ativo':'funis ativos'}</div>
+    <div class="hero-grid">
+      <div class="hstat"><div class="h-lbl">Arrecadado total</div><div class="h-v" style="color:var(--green)">${fmtRk(arre)}</div></div>
+      <div class="hstat"><div class="h-lbl">Investido total</div><div class="h-v" style="color:var(--amber)">${fmtRk(inv)}</div></div>
+      <div class="hstat"><div class="h-lbl">ROI geral</div><div class="h-v" style="color:${roiCol(roi)}">${fmtX(roi)}</div></div>
+      <div class="hstat"><div class="h-lbl">Vendas hoje</div><div class="h-v" style="color:var(--blue)">${fmtI(hoje)}</div></div>
+      <div class="hstat"><div class="h-lbl">Mentoria Elite</div><div class="h-v" style="color:var(--gold)">${fmtI(elite)}</div></div>
+    </div>
+  </div>
+  <div class="home-grid">
+    <div class="home-left">
+      <div><h2 class="sec">📊 Funis</h2><div class="funis">${cards}</div></div>
+    </div>
+    <div class="home-feed">${feedHTML((DATA.atividades||[]).slice(0,18))}</div>
+  </div>`;
+}
+
+function kpiHTML(x){
+  return `<div class="kpi" style="--ac:${x.ac}">
+    <div class="lbl">${x.ico} ${x.lbl}</div>
+    <div class="v" style="color:${x.col}">${x.hoje}</div>
+    <div class="a"><span>${x.tag||'hoje'} ▲</span><span>${x.aLbl||'acum.'} <b>${x.acum}</b></span></div>
+  </div>`;
+}
+
+function renderPerpetuo(code){
+  const k = (DATA.kpis||[]).find(x=>x.contest_code===code); if(!k){location.hash='#/';return}
+  const f = (DATA.funil||[]).find(x=>x.contest_code===code) || {};
+  const w = (DATA.semana||[]).find(x=>x.contest_code===code) || {};
+  const diario = (DATA.diario||[]).filter(d=>d.contest_code===code);
+  const iscas = code==='PRF' ? (DATA.iscas||[]) : [];
+  const receita = (k.arrecadado_acum||0)+(k.receita_elite_acum||0);
+  const roiT = k.invest_acum>0 ? receita/k.invest_acum : null;
+  const roiL = k.invest_acum>0 ? (k.arrecadado_acum||0)/k.invest_acum : null;
+
+  const kpis = [
+    {ico:'🛒', lbl:'Matrículas',  hoje:fmtI(k.lt_hoje), acum:fmtI(k.lt_acum), ac:'var(--blue)', col:'var(--blue)'},
+    {ico:'💰', lbl:'Arrecadado',  hoje:fmtR(k.arrecadado_hoje), acum:fmtRk(k.arrecadado_acum), ac:'var(--green)', col:'var(--green)'},
+    {ico:'📊', lbl:'Investido',   hoje:fmtR(k.invest_hoje), acum:fmtRk(k.invest_acum), ac:'var(--amber)', col:'var(--amber)'},
+    {ico:'📈', lbl:'ROI',         hoje:fmtX(roiT), tag:'com elite', acum:fmtX(roiL), aLbl:'só LT', ac:roiCol(roiT), col:roiCol(roiT)},
+    {ico:'👥', lbl:'Grupo',       hoje:fmtI(k.grupo_hoje), acum:fmtI(k.grupo_acum), ac:'var(--cyan)', col:'var(--cyan)'},
+    {ico:'📋', lbl:'Pesquisa',    hoje:fmtI(k.pesquisa_hoje), acum:fmtI(k.pesquisa_acum), ac:'var(--violet)', col:'var(--violet)'},
+    {ico:'🖥️', lbl:'Webinário',   hoje:fmtI(k.webinar_hoje), acum:fmtI(k.webinar_acum), ac:'var(--orange)', col:'var(--orange)'},
+    {ico:'👑', lbl:'Elite',       hoje:fmtI(k.elite_hoje), acum:fmtI(k.elite_acum), ac:'var(--gold)', col:'var(--gold)'},
+  ].map(kpiHTML).join('');
+
+  const steps = [
+    {lbl:'Matrículas low ticket', v:f.compradores_lt, c1:'#123c8f', c2:'#2f7bff'},
+    {lbl:'Entraram no grupo',     v:f.grupo,   c1:'#0f4fae', c2:'#2f8fff'},
+    {lbl:'Responderam pesquisa',  v:f.pesquisa,c1:'#0a67b5', c2:'#27b6f5'},
+    {lbl:'Assistiram webinário',  v:f.webinar, c1:'#0c7f96', c2:'#27d3f5'},
+    {lbl:'Chegaram no pitch',     v:f.pitch,   c1:'#0e9668', c2:'#2ee56b'},
+    {lbl:'Mentoria Elite',        v:f.elite,   c1:'#1cae4f', c2:'#2ee56b'},
+  ];
+  const base = steps[0].v||0;
+  const stepsHTML = steps.map((s,i)=>{
+    const prev = i===0?null:steps[i-1].v;
+    return `<div class="step" style="--c1:${s.c1};--c2:${s.c2};--w:${base>0?Math.max(8,100*(s.v||0)/base):8}%">
+      <div class="bar"></div>
+      <div class="in"><span class="s-lbl">${s.lbl}</span><span class="s-v">${fmtI(s.v)}</span>
+      <span class="s-p">${i===0?'100%':pct(s.v,prev)+' da anterior'}</span></div>
+    </div>`;
+  }).join('');
+
+  const totV = iscas.reduce((a,x)=>a+(x.vendas_acum||0),0);
+  const totI = iscas.reduce((a,x)=>a+(x.investimento||0),0);
+  const cpaMed = totV>0 ? totI/totV : null;
+  const iscasHTML = iscas.length ? `<div><h2 class="sec">🎯 Por isca</h2><div class="igrid">${
+    ['plano_quiz','plano_pagina','mapas','raiox'].map(b=>{
+      const x = iscas.find(i=>i.bucket===b)||{};
+      const cpaCls = (cpaMed&&x.cpa) ? (x.cpa<=cpaMed?'good':(x.cpa<=cpaMed*1.3?'warn':'bad')) : '';
+      return `<div class="isca" style="--ac:${AC_ISCA[b]}"><h4 style="color:${AC_ISCA[b]}">${NAMES_ISCA[b]}</h4>
+        <div class="rows">
+          <div class="r"><span class="k">Hoje</span><span class="w">${fmtI(x.vendas_hoje)}</span></div>
+          <div class="r"><span class="k">Vendas</span><span class="w">${fmtI(x.vendas_acum)}</span></div>
+          <div class="r"><span class="k">Arrecadado</span><span class="w">${fmtRk(x.arrecadado)}</span></div>
+          <div class="r"><span class="k">Investido</span><span class="w">${fmtRk(x.investimento)}</span></div>
+          <div class="r"><span class="k">CPA</span><span class="w ${cpaCls}">${x.cpa!=null?fmtR(x.cpa):'—'}</span></div>
+          <div class="r"><span class="k">ROI LT</span><span class="w ${x.roi_lt>=1?'good':(x.roi_lt>=0.7?'warn':'bad')}">${x.roi_lt!=null?fmtX(x.roi_lt):'—'}</span></div>
+          <div class="r"><span class="k">Elite</span><span class="w" style="color:var(--gold)">${fmtI(x.elite)}</span></div>
+        </div></div>`;
+    }).join('')}</div></div>` : '';
+
+  const feed = (DATA.atividades||[]).filter(a=>a.contest_code===code && a.tipo!=='ingresso').slice(0,12);
+
+  $('main').innerHTML = `<div class="det">
+    <div class="det-hero"><h1>∞ FUNIL PERPÉTUO · ${esc(k.contest_name||code)}</h1>
+      <div class="sub">Ascensão low ticket → Elite: ${pct(f.elite, f.compradores_lt)} · Elite fecha ~1 semana após a entrada</div></div>
+    <div class="kgrid">${kpis}</div>
+    <div><h2 class="sec">🔻 Funil de conversão</h2><div class="steps">${stepsHTML}</div></div>
+    ${iscasHTML}
+    <div class="card"><h3>Matrículas dia a dia · todo o período</h3>
+      <div class="chart-scroll">${chartSVG(diario.map(d=>({dia:d.dia,valor:d.matriculas})),'#2f7bff','#5ea0ff','#0a1020')}</div></div>
+    <div><h2 class="sec">📅 Semana atual</h2><div class="wgrid">
+      <div class="wcard" style="--ac:var(--blue)"><span class="k">Matrículas</span><span class="v" style="color:var(--blue)">${fmtI(w.lt_semana)}</span></div>
+      <div class="wcard" style="--ac:var(--green)"><span class="k">Arrecadado LT</span><span class="v" style="color:var(--green)">${fmtRk(w.arrecadado_semana)}</span></div>
+      <div class="wcard" style="--ac:var(--amber)"><span class="k">Investido</span><span class="v" style="color:var(--amber)">${fmtRk(w.invest_semana)}</span></div>
+      <div class="wcard" style="--ac:var(--gold)"><span class="k">Elite fechadas</span><span class="v" style="color:var(--gold)">${fmtI(w.elite_fechados_semana)}</span></div>
+      <div class="wcard" style="--ac:var(--gold)"><span class="k">Receita Elite</span><span class="v" style="color:var(--gold)">${fmtRk(w.receita_elite_semana)}</span></div>
+    </div></div>
+    ${feedHTML(feed,'Vendas do funil')}
+  </div>`;
+}
+
+function renderEvento(fid){
+  const ev = (DATA.evento||[]).find(x=>String(x.funnel_id||x.funnel_name)===fid); if(!ev){location.hash='#/';return}
+  const evd = (DATA.evento_diario||[]).filter(d=>d.funnel_id ? d.funnel_id===ev.funnel_id : d.funnel_name===ev.funnel_name);
+  const evw = (DATA.evento_semana||[]).find(x=>x.funnel_id ? x.funnel_id===ev.funnel_id : x.funnel_name===ev.funnel_name) || {};
+  const receita = (ev.arrecadado_acum||0)+(ev.receita_elite_acum||0);
+  const roiT = ev.invest_acum>0 ? receita/ev.invest_acum : null;
+  const roiL = ev.invest_acum>0 ? (ev.arrecadado_acum||0)/ev.invest_acum : null;
+
+  const kpis = [
+    {ico:'🎟', lbl:'Ingressos',  hoje:fmtI(ev.lt_hoje), acum:fmtI(ev.lt_acum), ac:'var(--orange)', col:'var(--orange)'},
+    {ico:'💰', lbl:'Arrecadado', hoje:fmtR(ev.arrecadado_hoje), acum:fmtRk(ev.arrecadado_acum), ac:'var(--green)', col:'var(--green)'},
+    {ico:'📊', lbl:'Investido',  hoje:fmtR(ev.invest_hoje), acum:fmtRk(ev.invest_acum), ac:'var(--amber)', col:'var(--amber)'},
+    {ico:'📈', lbl:'ROI',        hoje:fmtX(roiT), tag:'com elite', acum:fmtX(roiL), aLbl:'só ingr.', ac:roiCol(roiT), col:roiCol(roiT)},
+    {ico:'👥', lbl:'Grupo',      hoje:fmtI(ev.grupo_hoje), acum:fmtI(ev.grupo_acum), ac:'var(--cyan)', col:'var(--cyan)'},
+    {ico:'📋', lbl:'Pesquisa',   hoje:fmtI(ev.pesquisa_hoje), acum:fmtI(ev.pesquisa_acum), ac:'var(--violet)', col:'var(--violet)'},
+    {ico:'🖥️', lbl:'Webinário',  hoje:fmtI(ev.webinar_hoje), acum:fmtI(ev.webinar_acum), ac:'var(--blue)', col:'var(--blue)'},
+    {ico:'👑', lbl:'Elite',      hoje:fmtI(ev.elite_hoje), acum:fmtI(ev.elite_acum), ac:'var(--gold)', col:'var(--gold)'},
+  ].map(kpiHTML).join('');
+
+  const feed = (DATA.atividades||[]).filter(a=>a.tipo==='ingresso' && (a.funnel_id ? a.funnel_id===ev.funnel_id : a.contest_code===ev.contest_code)).slice(0,12);
+
+  $('main').innerHTML = `<div class="det evento">
+    <div class="det-hero evento"><h1>🎟 ${esc(ev.funnel_name)}</h1>
+      <div class="sub">Evento ao vivo · o retorno completo vem na ascensão ao Elite após o webinário</div></div>
+    <div class="kgrid">${kpis}</div>
+    <div class="card"><h3>Ingressos dia a dia · todo o período</h3>
+      <div class="chart-scroll">${chartSVG(evd.map(d=>({dia:d.dia,valor:d.ingressos})),'#ff8a3d','#ffab6b','#140b09')}</div></div>
+    <div><h2 class="sec">📅 Semana atual</h2><div class="wgrid">
+      <div class="wcard" style="--ac:var(--orange)"><span class="k">Ingressos</span><span class="v" style="color:var(--orange)">${fmtI(evw.ingressos_semana)}</span></div>
+      <div class="wcard" style="--ac:var(--green)"><span class="k">Arrecadado</span><span class="v" style="color:var(--green)">${fmtRk(evw.arrecadado_semana)}</span></div>
+      <div class="wcard" style="--ac:var(--amber)"><span class="k">Investido</span><span class="v" style="color:var(--amber)">${fmtRk(evw.invest_semana)}</span></div>
+      <div class="wcard" style="--ac:var(--orange)"><span class="k">Acumulado</span><span class="v">${fmtI(ev.lt_acum)}</span></div>
+      <div class="wcard" style="--ac:${roiCol(roiL)}"><span class="k">ROI ingressos</span><span class="v" style="color:${roiCol(roiL)}">${fmtX(roiL)}</span></div>
+    </div></div>
+    ${feedHTML(feed,'Ingressos vendidos')}
+  </div>`;
+}
+
+/* ================= router ================= */
+function route(){
+  if(!DATA) return;
+  const h = location.hash || '#/';
+  const m = h.match(/^#\/f\/(p|e)-(.+)$/);
+  $('back').classList.toggle('show', !!m);
+  window.scrollTo(0,0);
+  if(!m){ renderHome(); return; }
+  if(m[1]==='p') renderPerpetuo(decodeURIComponent(m[2]));
+  else renderEvento(decodeURIComponent(m[2]));
+}
+window.addEventListener('hashchange', route);
+$('back').addEventListener('click', ()=>{location.hash='#/';});
+$('home-link').addEventListener('click', e=>{e.preventDefault();location.hash='#/';});
+
+/* ================= dados ================= */
+function tickUpd(){
+  if(!lastOk){return}
+  const m = Math.round((Date.now()-lastOk)/60000);
+  $('upd').textContent = m<1 ? 'atualizado agora' : `há ${m} min`;
+}
+setInterval(tickUpd, 30000);
+
+const DEMO_DATA = {
+  kpis:[{contest_code:'PRF',contest_name:'Polícia Rodoviária Federal',lt_hoje:12,lt_acum:380,arrecadado_hoje:420,arrecadado_acum:11500,grupo_hoje:8,grupo_acum:210,pesquisa_hoje:5,pesquisa_acum:160,webinar_hoje:0,webinar_acum:95,elite_hoje:1,elite_acum:9,receita_elite_acum:9800,invest_hoje:900,invest_acum:15000}],
+  funil:[{contest_code:'PRF',compradores_lt:380,grupo:210,pesquisa:160,webinar:95,pitch:70,elite:9}],
+  iscas:[
+    {bucket:'plano_quiz',vendas_hoje:5,vendas_acum:160,arrecadado:3200,investimento:4400,elite:4,cpa:27.5,roi_lt:0.73},
+    {bucket:'plano_pagina',vendas_hoje:2,vendas_acum:90,arrecadado:4500,investimento:7300,elite:2,cpa:81.1,roi_lt:0.62},
+    {bucket:'mapas',vendas_hoje:2,vendas_acum:60,arrecadado:2950,investimento:3200,elite:1,cpa:53.3,roi_lt:0.92},
+    {bucket:'raiox',vendas_hoje:3,vendas_acum:70,arrecadado:1400,investimento:2100,elite:2,cpa:30,roi_lt:0.67}],
+  semana:[{contest_code:'PRF',semana_inicio:'2026-06-29',lt_semana:180,arrecadado_semana:5200,elite_fechados_semana:4,receita_elite_semana:6400,invest_semana:9000}],
+  evento:[{funnel_id:'demo-ev',funnel_name:'Profissão PRF — Julho 2026',contest_code:'PRF',lt_hoje:22,lt_acum:150,arrecadado_hoje:440,arrecadado_acum:2990,grupo_hoje:0,grupo_acum:0,pesquisa_hoje:0,pesquisa_acum:0,webinar_hoje:0,webinar_acum:0,elite_hoje:0,elite_acum:0,receita_elite_acum:0,invest_hoje:800,invest_acum:8600}],
+  evento_semana:[{funnel_id:'demo-ev',funnel_name:'Profissão PRF — Julho 2026',semana_inicio:'2026-06-29',ingressos_semana:96,arrecadado_semana:1910,invest_semana:4200}],
+  evento_diario:[['2026-06-24',6],['2026-06-25',9],['2026-06-26',11],['2026-06-27',8],['2026-06-28',10],['2026-06-29',12],['2026-06-30',14],['2026-07-01',19],['2026-07-02',29],['2026-07-03',22]].map(([dia,ingressos])=>({funnel_id:'demo-ev',funnel_name:'Profissão PRF — Julho 2026',dia,ingressos})),
+  diario:[['2026-06-20',9],['2026-06-21',22],['2026-06-22',14],['2026-06-23',25],['2026-06-24',20],['2026-06-25',24],['2026-06-26',19],['2026-06-27',16],['2026-06-28',27],['2026-06-29',21],['2026-06-30',41],['2026-07-01',38],['2026-07-02',52],['2026-07-03',15]].map(([dia,matriculas])=>({contest_code:'PRF',dia,matriculas})),
+  atividades:[
+    {tipo:'ingresso',primeiro_nome:'Renata',produto:'Profissão PRF',contest_code:'PRF',funnel_id:'demo-ev',paid_at:new Date(Date.now()-4*60000).toISOString()},
+    {tipo:'low_ticket',primeiro_nome:'Fabiano',produto:'Plano de Estudos PRF',contest_code:'PRF',paid_at:new Date(Date.now()-11*60000).toISOString()},
+    {tipo:'elite',primeiro_nome:'Juliana',produto:'Mentoria Elite PRF',contest_code:'PRF',paid_at:new Date(Date.now()-64*60000).toISOString()},
+    {tipo:'low_ticket',primeiro_nome:'Carlos',produto:'Raio X PRF',contest_code:'PRF',paid_at:new Date(Date.now()-95*60000).toISOString()},
+    {tipo:'ingresso',primeiro_nome:'Amanda',produto:'Profissão PRF',contest_code:'PRF',funnel_id:'demo-ev',paid_at:new Date(Date.now()-140*60000).toISOString()},
+  ]
+};
+
+async function fetchData(manual){
+  if(manual) $('refresh').classList.add('spin');
+  try{
+    if(DEMO){ DATA = DEMO_DATA; }
+    else{
+      if(!KEY){ $('overlay').classList.add('show'); return; }
+      const r = await fetch(`${API}?k=${encodeURIComponent(KEY)}`, {cache:'no-store'});
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      DATA = await r.json();
+    }
+    lastOk = Date.now();
+    $('overlay').classList.remove('show');
+    $('sdot').classList.remove('err');
+    tickUpd();
+    route();
+  }catch(e){
+    if(!DATA){
+      $('overlay-msg').textContent = 'Não foi possível carregar ('+e.message+'). Verifique a conexão ou a chave de acesso.';
+      $('overlay').classList.add('show');
+    }else{
+      $('sdot').classList.add('err');
+      $('upd').textContent = 'sem conexão';
+    }
+  }finally{
+    $('refresh').classList.remove('spin');
+  }
+}
+$('refresh').addEventListener('click', ()=>fetchData(true));
+fetchData();
+setInterval(fetchData, FETCH_MS);
+</script>
+</body>
+</html>
