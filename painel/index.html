@@ -398,14 +398,11 @@ function renderPerpetuo(code){
   const receita = (k.arrecadado_acum||0)+(k.receita_elite_acum||0);
   const roiT = k.invest_acum>0 ? receita/k.invest_acum : null;
   const roiL = k.invest_acum>0 ? (k.arrecadado_acum||0)/k.invest_acum : null;
-  const cpaHoje = k.lt_hoje>0 ? (k.invest_hoje||0)/k.lt_hoje : null;
-  const cpaAcum = k.lt_acum>0 ? (k.invest_acum||0)/k.lt_acum : null;
 
   const kpis = (r ? [
     {ico:'🛒', lbl:'Matrículas',  hoje:fmtI(t.vendas), tag:'no período', acum:mDia(t.vendas), aLbl:'média/dia', ac:'var(--blue)', col:'var(--blue)'},
     {ico:'💰', lbl:'Arrecadado',  hoje:fmtRk(t.arrecadado), tag:'no período', acum:fmtRk(t.arrecadado/diasN), aLbl:'média/dia', ac:'var(--green)', col:'var(--green)'},
     {ico:'📊', lbl:'Investido',   hoje:fmtRk(t.invest), tag:'no período', acum:fmtRk(t.invest/diasN), aLbl:'média/dia', ac:'var(--amber)', col:'var(--amber)'},
-    {ico:'🎯', lbl:'CPA matrícula', hoje:t.cpa!=null?fmtR(t.cpa):'—', tag:'no período', acum:fmtI(t.vendas), aLbl:'vendas', ac:'var(--amber)', col:'var(--amber)'},
     {ico:'📈', lbl:'ROI',         hoje:fmtX(t.roi), tag:'com elite', acum:fmtX(t.roiLt), aLbl:'só LT', ac:roiCol(t.roi), col:roiCol(t.roi)},
     {ico:'👥', lbl:'Grupo',       hoje:fmtI(t.grupo), tag:'no período', acum:mDia(t.grupo), aLbl:'média/dia', ac:'var(--cyan)', col:'var(--cyan)'},
     {ico:'📋', lbl:'Pesquisa',    hoje:fmtI(t.pesquisa), tag:'no período', acum:mDia(t.pesquisa), aLbl:'média/dia', ac:'var(--violet)', col:'var(--violet)'},
@@ -415,7 +412,6 @@ function renderPerpetuo(code){
     {ico:'🛒', lbl:'Matrículas',  hoje:fmtI(k.lt_hoje), acum:fmtI(k.lt_acum), ac:'var(--blue)', col:'var(--blue)'},
     {ico:'💰', lbl:'Arrecadado',  hoje:fmtR(k.arrecadado_hoje), acum:fmtRk(k.arrecadado_acum), ac:'var(--green)', col:'var(--green)'},
     {ico:'📊', lbl:'Investido',   hoje:fmtR(k.invest_hoje), acum:fmtRk(k.invest_acum), ac:'var(--amber)', col:'var(--amber)'},
-    {ico:'🎯', lbl:'CPA matrícula', hoje:cpaHoje!=null?fmtR(cpaHoje):'—', acum:cpaAcum!=null?fmtR(cpaAcum):'—', ac:'var(--amber)', col:'var(--amber)'},
     {ico:'📈', lbl:'ROI',         hoje:fmtX(roiT), tag:'com elite', acum:fmtX(roiL), aLbl:'só LT', ac:roiCol(roiT), col:roiCol(roiT)},
     {ico:'👥', lbl:'Grupo',       hoje:fmtI(k.grupo_hoje), acum:fmtI(k.grupo_acum), ac:'var(--cyan)', col:'var(--cyan)'},
     {ico:'📋', lbl:'Pesquisa',    hoje:fmtI(k.pesquisa_hoje), acum:fmtI(k.pesquisa_acum), ac:'var(--violet)', col:'var(--violet)'},
@@ -484,7 +480,6 @@ function renderPerpetuo(code){
 
   const feed = (DATA.atividades||[]).filter(a=>a.contest_code===code && a.tipo!=='ingresso').slice(0,12);
 
-  const cpaRows = cpaSerie(rows);
   $('main').innerHTML = `<div class="det">
     <div class="det-hero"><h1>∞ FUNIL PERPÉTUO · ${esc(k.contest_name||code)}</h1>
       <div class="sub">Ascensão low ticket → Elite: ${pct(f.elite, f.compradores_lt)} · Elite fecha ~1 semana após a entrada</div></div>
@@ -494,8 +489,6 @@ function renderPerpetuo(code){
     ${iscasHTML}
     <div class="card"><h3>Matrículas dia a dia · ${r?'no período':'todo o período'}</h3>
       <div class="chart-scroll">${chartSVG(rows.map(d=>({dia:d.dia,valor:d.vendas||0})),'#2f7bff','#5ea0ff','#0a1020')}</div></div>
-    <div class="card"><h3>🎯 CPA por matrícula dia a dia ${t.cpa!=null?'· médio '+fmtR(t.cpa):''}</h3>
-      <div class="chart-scroll">${chartSVG(cpaRows,'#ffb020','#ffcc4d','#0a1020',v=>'R$'+Math.round(v))}</div></div>
     ${r?'':`<div><h2 class="sec">📅 Semana atual</h2><div class="wgrid">
       <div class="wcard" style="--ac:var(--blue)"><span class="k">Matrículas</span><span class="v" style="color:var(--blue)">${fmtI(w.lt_semana)}</span></div>
       <div class="wcard" style="--ac:var(--green)"><span class="k">Arrecadado LT</span><span class="v" style="color:var(--green)">${fmtRk(w.arrecadado_semana)}</span></div>
