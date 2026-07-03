@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex,nofollow">
+<title>SOU · Painel Executivo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;700;800&family=Archivo:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#04070f;
+  --panel:#0a1020;
+  --panel2:#0d1526;
+  --line:rgba(120,160,255,.10);
+  --txt:#eef3ff;
+  --dim:#7d8cab;
+  --blue:#2f7bff;
+  --cyan:#27d3f5;
+  --green:#2ee56b;
+  --amber:#ffb020;
+  --red:#ff4d5e;
+  --violet:#9d6bff;
+  --orange:#ff8a3d;
+  --gold:#ffcc4d;
+  --num:'Big Shoulders Display',sans-serif;
+  --body:'Archivo',sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--txt);font-family:var(--body)}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:
+    radial-gradient(ellipse 60% 45% at 12% -8%, rgba(47,123,255,.14), transparent 60%),
+    radial-gradient(ellipse 50% 40% at 92% 108%, rgba(46,229,107,.08), transparent 60%),
+    radial-gradient(ellipse 40% 35% at 85% -5%, rgba(157,107,255,.07), transparent 60%);}
+body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.5;
+  background-image:linear-gradient(rgba(125,140,171,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(125,140,171,.045) 1px,transparent 1px);
+  background-size:4.2vw 4.2vw;}
+
+#app{position:relative;z-index:1;display:flex;flex-direction:column;height:100%;padding:2.2vh 2.2vw}
+
+/* ---------- header ---------- */
+header{display:flex;align-items:baseline;gap:1.4vw;margin-bottom:1.6vh}
+.brand{font-family:var(--num);font-weight:800;font-size:3.4vh;letter-spacing:.14em;color:var(--blue)}
+.brand em{font-style:normal;color:var(--txt)}
+#screen-title{font-family:var(--num);font-weight:700;font-size:3.4vh;letter-spacing:.22em;color:var(--dim);text-transform:uppercase}
+.hd-right{margin-left:auto;display:flex;align-items:baseline;gap:1.6vw}
+#clock{font-family:var(--num);font-weight:700;font-size:3.6vh;letter-spacing:.08em;font-variant-numeric:tabular-nums}
+#hd-date{font-size:1.8vh;color:var(--dim);text-transform:capitalize}
+#status{display:flex;align-items:center;gap:.5vw;font-size:1.6vh;color:var(--dim)}
+#status .dot{width:1.1vh;height:1.1vh;border-radius:50%;background:var(--green);box-shadow:0 0 1.2vh var(--green);animation:pulse 2.4s infinite}
+#status.err .dot{background:var(--red);box-shadow:0 0 1.2vh var(--red)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+/* ---------- screens ---------- */
+#stage{position:relative;flex:1;min-height:0}
+.screen{position:absolute;inset:0;display:none;flex-direction:column}
+.screen.on{display:flex}
+.screen.on > *{animation:rise .55s cubic-bezier(.2,.7,.2,1) both}
+.screen.on > *:nth-child(1){animation-delay:.02s}
+.screen.on > *:nth-child(2){animation-delay:.10s}
+.screen.on > *:nth-child(3){animation-delay:.18s}
+@keyframes rise{from{opacity:0;transform:translateY(2.4vh)}to{opacity:1;transform:none}}
+
+/* ---------- tela 1: KPIs ---------- */
+.kpi-grid{flex:1;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:1fr 1fr;gap:1.6vh 1vw}
+.kpi{background:linear-gradient(160deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:1.6vh;
+  padding:2.6vh 1.8vw;display:flex;flex-direction:column;position:relative;overflow:hidden}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:.5vh;background:var(--ac,linear-gradient(90deg,var(--blue),transparent))}
+.kpi .lbl{font-size:2.2vh;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);display:flex;align-items:center;gap:.7vw}
+.kpi .ico{font-size:2.6vh}
+.kpi .today{flex:1;display:flex;align-items:center;gap:1vw;min-height:0}
+.kpi .today .v{font-family:var(--num);font-weight:800;font-size:11.5vh;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:.01em}
+.kpi .today .tag{font-size:1.9vh;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;align-self:flex-end;margin-bottom:2vh}
+.kpi .acum{display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid var(--line);padding-top:1.4vh}
+.kpi .acum .a-lbl{font-size:1.8vh;color:var(--dim);letter-spacing:.08em;text-transform:uppercase}
+.kpi .acum .a-v{font-family:var(--num);font-weight:700;font-size:4.6vh;font-variant-numeric:tabular-nums}
+
+/* ---------- tela 2: funil ---------- */
+.fun-wrap{flex:1;display:flex;flex-direction:column;justify-content:center;gap:3vh}
+.fun-row{display:flex;gap:.5vw}
+.fstep{flex:1;position:relative;padding:3vh 1vw 2.6vh 1.6vw;clip-path:polygon(0 0,calc(100% - 1.4vw) 0,100% 50%,calc(100% - 1.4vw) 100%,0 100%,1.4vw 50%);
+  background:linear-gradient(160deg,var(--c1),var(--c2));display:flex;flex-direction:column;gap:1.2vh}
+.fstep .f-lbl{font-size:1.9vh;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:rgba(255,255,255,.85);min-height:4.4vh}
+.fstep .f-v{font-family:var(--num);font-weight:800;font-size:7.4vh;line-height:1;font-variant-numeric:tabular-nums}
+.fstep .f-p{font-family:var(--num);font-weight:700;font-size:3.4vh;color:rgba(255,255,255,.92)}
+.fstep .f-p small{font-size:1.7vh;font-family:var(--body);font-weight:500;color:rgba(255,255,255,.6);display:block;letter-spacing:.05em}
+.fun-note{text-align:center;color:var(--dim);font-size:2vh;letter-spacing:.04em}
+.fun-note b{color:var(--gold)}
+
+/* ---------- tela 3: iscas ---------- */
+.isca-grid{flex:1;display:grid;grid-template-columns:repeat(4,1fr);gap:1vw}
+.isca{background:linear-gradient(165deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:1.6vh;padding:2.8vh 1.4vw;
+  display:flex;flex-direction:column;gap:1.8vh;position:relative;overflow:hidden}
+.isca::before{content:'';position:absolute;top:0;left:0;right:0;height:.6vh;background:var(--ac)}
+.isca h3{font-family:var(--num);font-weight:700;font-size:3.6vh;letter-spacing:.06em;text-transform:uppercase}
+.isca .i-today{display:flex;align-items:baseline;gap:.6vw}
+.isca .i-today .v{font-family:var(--num);font-weight:800;font-size:9vh;line-height:1;font-variant-numeric:tabular-nums}
+.isca .i-today .t{font-size:1.7vh;color:var(--dim);text-transform:uppercase;letter-spacing:.1em}
+.isca .rows{display:flex;flex-direction:column;gap:1.2vh;margin-top:auto}
+.isca .r{display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid var(--line);padding-top:1.2vh}
+.isca .r .k{font-size:1.8vh;color:var(--dim);letter-spacing:.05em;text-transform:uppercase}
+.isca .r .w{font-family:var(--num);font-weight:700;font-size:3.4vh;font-variant-numeric:tabular-nums}
+.good{color:var(--green)}.warn{color:var(--amber)}.bad{color:var(--red)}
+
+/* ---------- tela 4: semana ---------- */
+.sem-wrap{flex:1;display:grid;grid-template-columns:1fr 1.35fr;gap:1.2vw;min-height:0}
+.sem-cards{display:grid;grid-template-rows:repeat(4,1fr);gap:1.4vh}
+.scard{background:linear-gradient(160deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:1.6vh;
+  padding:1.6vh 1.6vw;display:flex;align-items:center;justify-content:space-between;border-left:.5vw solid var(--ac,#2f7bff)}
+.scard .s-lbl{font-size:2.1vh;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:.07em;max-width:55%}
+.scard .s-v{font-family:var(--num);font-weight:800;font-size:6.4vh;font-variant-numeric:tabular-nums;line-height:1}
+.chart-card{background:linear-gradient(160deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:1.6vh;
+  padding:2.4vh 1.6vw;display:flex;flex-direction:column;min-height:0}
+.chart-card h3{font-size:2.2vh;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;margin-bottom:1vh}
+#chart{flex:1;width:100%;min-height:0}
+
+/* ---------- footer ---------- */
+footer{display:flex;align-items:center;gap:2vw;margin-top:1.8vh;background:linear-gradient(90deg,var(--panel2),var(--panel));
+  border:1px solid var(--line);border-radius:1.4vh;padding:1.6vh 1.6vw}
+.f-title{display:flex;align-items:center;gap:.7vw;font-family:var(--num);font-weight:700;font-size:2.6vh;letter-spacing:.1em;color:var(--gold);white-space:nowrap}
+#insights{flex:1;display:flex;gap:2.4vw;overflow:hidden}
+.ins{display:flex;align-items:center;gap:.6vw;font-size:2.3vh;font-weight:500;white-space:nowrap}
+.ins b{font-weight:700}
+.dots{display:flex;gap:.6vw;margin-left:auto}
+.dots span{width:1.4vh;height:1.4vh;border-radius:50%;background:rgba(125,140,171,.3);transition:.3s}
+.dots span.on{background:var(--cyan);box-shadow:0 0 1.4vh var(--cyan)}
+
+/* ---------- overlay ---------- */
+#overlay{position:fixed;inset:0;z-index:9;display:none;align-items:center;justify-content:center;flex-direction:column;gap:2vh;
+  background:rgba(4,7,15,.94);text-align:center;padding:4vw}
+#overlay.show{display:flex}
+#overlay h2{font-family:var(--num);font-size:6vh;letter-spacing:.1em}
+#overlay p{color:var(--dim);font-size:2.4vh;max-width:60vw;line-height:1.5}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand">SOU<em>·DATA</em></div>
+    <div id="screen-title">Visão Geral</div>
+    <div class="hd-right">
+      <div id="status"><span class="dot"></span><span id="status-txt">ao vivo</span></div>
+      <div id="hd-date"></div>
+      <div id="clock">--:--</div>
+    </div>
+  </header>
+
+  <div id="stage">
+    <!-- TELA 1: KPIs -->
+    <section class="screen on" id="s0" data-title="Visão Geral · Funil PRF">
+      <div class="kpi-grid" id="kpi-grid"></div>
+    </section>
+
+    <!-- TELA 2: FUNIL -->
+    <section class="screen" id="s1" data-title="Funil de Conversão · PRF">
+      <div class="fun-wrap">
+        <div class="fun-row" id="fun-row"></div>
+        <div class="fun-note" id="fun-note"></div>
+      </div>
+    </section>
+
+    <!-- TELA 3: ISCAS -->
+    <section class="screen" id="s2" data-title="Performance por Isca · Meta">
+      <div class="isca-grid" id="isca-grid"></div>
+    </section>
+
+    <!-- TELA 4: SEMANA -->
+    <section class="screen" id="s3" data-title="Ritmo da Semana">
+      <div class="sem-wrap">
+        <div class="sem-cards" id="sem-cards"></div>
+        <div class="chart-card">
+          <h3>Matrículas dia a dia · últimos 14 dias</h3>
+          <svg id="chart" preserveAspectRatio="none"></svg>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <footer>
+    <div class="f-title">💡 INSIGHTS</div>
+    <div id="insights"></div>
+    <div class="dots" id="dots"></div>
+  </footer>
+</div>
+
+<div id="overlay">
+  <h2>AGUARDANDO DADOS</h2>
+  <p id="overlay-msg">Abra o painel com o link completo que contém a chave de acesso (…?k=CHAVE).</p>
+</div>
+
+<script>
+'use strict';
+/* ================= CONFIG ================= */
+const API_BASE   = 'https://dqpxugdhlgafvddavzzp.supabase.co/functions/v1/dashboard-tv';
+const CONTEST    = 'PRF';
+const ROTATE_MS  = 20000;   // troca de tela
+const FETCH_MS   = 5*60*1000; // atualização de dados
+const NAMES = {plano_quiz:'Plano Quizz', plano_pagina:'Plano Página', mapas:'Mapas Mentais', raiox:'Raio X'};
+const ISCA_AC = {plano_quiz:'var(--violet)', plano_pagina:'var(--green)', mapas:'var(--blue)', raiox:'var(--orange)'};
+
+const qs = new URLSearchParams(location.search);
+const KEY  = qs.get('k') || '';
+const DEMO = qs.has('demo');
+
+/* ================= helpers ================= */
+const $ = id => document.getElementById(id);
+const fmtI = n => (n??0).toLocaleString('pt-BR');
+const fmtR = n => 'R$ ' + (n??0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtRk = n => n>=100000 ? 'R$ '+(n/1000).toLocaleString('pt-BR',{maximumFractionDigits:1})+' mil' : fmtR(n);
+const pct = (a,b) => b>0 ? (100*a/b).toLocaleString('pt-BR',{maximumFractionDigits:1})+'%' : '—';
+const roiCls = r => r==null?'':(r>=1?'good':(r>=0.7?'warn':'bad'));
+
+/* ================= clock ================= */
+function tickClock(){
+  const now = new Date(new Date().toLocaleString('en-US',{timeZone:'America/Sao_Paulo'}));
+  $('clock').textContent = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+  $('hd-date').textContent = now.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',timeZone:'America/Sao_Paulo'});
+}
+tickClock(); setInterval(tickClock, 15000);
+
+/* ================= rotação ================= */
+const screens = [...document.querySelectorAll('.screen')];
+$('dots').innerHTML = screens.map((_,i)=>'<span'+(i===0?' class="on"':'')+'></span>').join('');
+let cur = 0;
+function show(i){
+  cur = i % screens.length;
+  screens.forEach((s,j)=>s.classList.toggle('on', j===cur));
+  [...$('dots').children].forEach((d,j)=>d.classList.toggle('on', j===cur));
+  $('screen-title').textContent = screens[cur].dataset.title;
+}
+setInterval(()=>show(cur+1), ROTATE_MS);
+
+/* ================= render ================= */
+let DATA = null;
+
+function render(){
+  if(!DATA) return;
+  const k = (DATA.kpis||[]).find(x=>x.contest_code===CONTEST) || {};
+  const f = (DATA.funil||[]).find(x=>x.contest_code===CONTEST) || {};
+  const w = (DATA.semana||[]).find(x=>x.contest_code===CONTEST) || {};
+  const iscas = DATA.iscas||[];
+  const diario = (DATA.diario||[]).filter(d=>d.contest_code===CONTEST).slice(-14);
+
+  /* --- tela 1 --- */
+  const kpis = [
+    {ico:'🛒', lbl:'Matrículas low ticket', hoje:fmtI(k.lt_hoje),        acum:fmtI(k.lt_acum),        ac:'linear-gradient(90deg,var(--blue),transparent)',  col:'var(--blue)'},
+    {ico:'💰', lbl:'Arrecadado',            hoje:fmtR(k.arrecadado_hoje), acum:fmtRk(k.arrecadado_acum), ac:'linear-gradient(90deg,var(--green),transparent)', col:'var(--green)', small:true},
+    {ico:'👥', lbl:'Entraram no grupo',     hoje:fmtI(k.grupo_hoje),     acum:fmtI(k.grupo_acum),     ac:'linear-gradient(90deg,var(--cyan),transparent)',  col:'var(--cyan)'},
+    {ico:'📋', lbl:'Respostas na pesquisa', hoje:fmtI(k.pesquisa_hoje),  acum:fmtI(k.pesquisa_acum),  ac:'linear-gradient(90deg,var(--violet),transparent)',col:'var(--violet)'},
+    {ico:'🖥️', lbl:'Participação webinário',hoje:fmtI(k.webinar_hoje),   acum:fmtI(k.webinar_acum),   ac:'linear-gradient(90deg,var(--orange),transparent)',col:'var(--orange)'},
+    {ico:'👑', lbl:'Mentoria Elite',        hoje:fmtI(k.elite_hoje),     acum:fmtI(k.elite_acum),     ac:'linear-gradient(90deg,var(--gold),transparent)',  col:'var(--gold)'},
+  ];
+  $('kpi-grid').innerHTML = kpis.map(x=>`
+    <div class="kpi" style="--ac:${x.ac}">
+      <div class="lbl"><span class="ico">${x.ico}</span>${x.lbl}</div>
+      <div class="today"><span class="v" style="color:${x.col};${x.small?'font-size:7.6vh':''}">${x.hoje}</span><span class="tag">hoje</span></div>
+      <div class="acum"><span class="a-lbl">Acumulado</span><span class="a-v">${x.acum}</span></div>
+    </div>`).join('');
+
+  /* --- tela 2 --- */
+  const steps = [
+    {lbl:'Matrículas low ticket', v:f.compradores_lt, c1:'#123c8f', c2:'#0c2a66'},
+    {lbl:'Entraram no grupo',     v:f.grupo,          c1:'#0f4fae', c2:'#0c3a85'},
+    {lbl:'Responderam pesquisa',  v:f.pesquisa,       c1:'#0a67b5', c2:'#0a4f95'},
+    {lbl:'Assistiram webinário',  v:f.webinar,        c1:'#0c7f96', c2:'#0a6379'},
+    {lbl:'Chegaram no pitch',     v:f.pitch,          c1:'#0e9668', c2:'#0b7451'},
+    {lbl:'Mentoria Elite',        v:f.elite,          c1:'#1cae4f', c2:'#12873c'},
+  ];
+  $('fun-row').innerHTML = steps.map((s,i)=>{
+    const prev = i===0 ? null : steps[i-1].v;
+    return `<div class="fstep" style="--c1:${s.c1};--c2:${s.c2}">
+      <div class="f-lbl">${s.lbl}</div>
+      <div class="f-v">${fmtI(s.v)}</div>
+      <div class="f-p">${i===0?'100%':pct(s.v,prev)}<small>${i===0?'base do funil':'da etapa anterior'}</small></div>
+    </div>`;
+  }).join('');
+  $('fun-note').innerHTML = `Ascensão low ticket → Elite: <b>${pct(f.elite, f.compradores_lt)}</b> dos compradores &nbsp;·&nbsp; Elite fecha em média ~1 semana após a entrada`;
+
+  /* --- tela 3 --- */
+  const totV = iscas.reduce((a,x)=>a+(x.vendas_acum||0),0);
+  const totI = iscas.reduce((a,x)=>a+(x.investimento||0),0);
+  const cpaMed = totV>0 ? totI/totV : null;
+  const order = ['plano_quiz','plano_pagina','mapas','raiox'];
+  $('isca-grid').innerHTML = order.map(b=>{
+    const x = iscas.find(i=>i.bucket===b) || {};
+    const cpaCls = (cpaMed && x.cpa) ? (x.cpa<=cpaMed?'good':(x.cpa<=cpaMed*1.3?'warn':'bad')) : '';
+    return `<div class="isca" style="--ac:${ISCA_AC[b]}">
+      <h3 style="color:${ISCA_AC[b]}">${NAMES[b]}</h3>
+      <div class="i-today"><span class="v">${fmtI(x.vendas_hoje)}</span><span class="t">vendas<br>hoje</span></div>
+      <div class="rows">
+        <div class="r"><span class="k">Vendas acum.</span><span class="w">${fmtI(x.vendas_acum)}</span></div>
+        <div class="r"><span class="k">Arrecadado</span><span class="w">${fmtRk(x.arrecadado)}</span></div>
+        <div class="r"><span class="k">Investido</span><span class="w">${fmtRk(x.investimento)}</span></div>
+        <div class="r"><span class="k">CPA</span><span class="w ${cpaCls}">${x.cpa!=null?fmtR(x.cpa):'—'}</span></div>
+        <div class="r"><span class="k">ROI low ticket</span><span class="w ${roiCls(x.roi_lt)}">${x.roi_lt!=null?x.roi_lt.toLocaleString('pt-BR')+'x':'—'}</span></div>
+        <div class="r"><span class="k">Elite</span><span class="w" style="color:var(--gold)">${fmtI(x.elite)}</span></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  /* --- tela 4 --- */
+  const semCards = [
+    {lbl:'Matrículas na semana',        v:fmtI(w.lt_semana),                 ac:'var(--blue)'},
+    {lbl:'Arrecadado low ticket',       v:fmtRk(w.arrecadado_semana),        ac:'var(--green)'},
+    {lbl:'Elite fechadas na semana',    v:fmtI(w.elite_fechados_semana),     ac:'var(--gold)'},
+    {lbl:'Receita Elite na semana',     v:fmtRk(w.receita_elite_semana),     ac:'var(--gold)'},
+  ];
+  $('sem-cards').innerHTML = semCards.map(x=>`
+    <div class="scard" style="--ac:${x.ac}">
+      <span class="s-lbl">${x.lbl}</span><span class="s-v" style="color:${x.ac}">${x.v}</span>
+    </div>`).join('');
+  drawChart(diario);
+
+  /* --- insights --- */
+  const ins = [];
+  if(iscas.length){
+    const lead = [...iscas].sort((a,b)=>(b.vendas_acum||0)-(a.vendas_acum||0))[0];
+    ins.push({c:'var(--violet)', t:`<b>${NAMES[lead.bucket]}</b> lidera em volume (${fmtI(lead.vendas_acum)} vendas)`});
+    const roi = [...iscas].filter(x=>x.roi_lt!=null).sort((a,b)=>b.roi_lt-a.roi_lt)[0];
+    if(roi) ins.push({c:'var(--green)', t:`Melhor ROI: <b>${NAMES[roi.bucket]}</b> (${roi.roi_lt.toLocaleString('pt-BR')}x)`});
+    if(cpaMed){
+      const alerta = [...iscas].filter(x=>x.cpa && x.cpa>cpaMed*1.3).sort((a,b)=>b.cpa-a.cpa)[0];
+      if(alerta) ins.push({c:'var(--red)', t:`⚠ CPA <b>${NAMES[alerta.bucket]}</b> +${Math.round(100*(alerta.cpa/cpaMed-1))}% vs média`});
+    }
+  }
+  if(w.elite_fechados_semana>0) ins.push({c:'var(--gold)', t:`<b>${fmtI(w.elite_fechados_semana)}</b> vendas Elite fechadas nesta semana`});
+  else if(k.lt_hoje>0) ins.push({c:'var(--blue)', t:`<b>${fmtI(k.lt_hoje)}</b> matrículas hoje`});
+  $('insights').innerHTML = ins.slice(0,3).map(i=>`<div class="ins" style="color:${i.c}">${i.t}</div>`).join('');
+}
+
+function drawChart(diario){
+  const svg = $('chart');
+  const W=1000,H=380,PB=44,PT=30,PL=34,PR=34;
+  svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+  if(!diario.length){svg.innerHTML='';return}
+  const max = Math.max(...diario.map(d=>d.matriculas),1);
+  const n = diario.length;
+  const x = i => PL + (n===1?((W-PL-PR)/2):(i*(W-PL-PR)/(n-1)));
+  const y = v => PT + (H-PT-PB)*(1-v/max);
+  const pts = diario.map((d,i)=>[x(i),y(d.matriculas)]);
+  const line = pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+  const area = line + ` L ${pts[n-1][0].toFixed(1)} ${H-PB} L ${pts[0][0].toFixed(1)} ${H-PB} Z`;
+  svg.innerHTML = `
+    <defs><linearGradient id="ag" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2f7bff" stop-opacity=".45"/><stop offset="1" stop-color="#2f7bff" stop-opacity="0"/>
+    </linearGradient></defs>
+    <path d="${area}" fill="url(#ag)"/>
+    <path d="${line}" fill="none" stroke="#5ea0ff" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
+    ${pts.map((p,i)=>`
+      <circle cx="${p[0]}" cy="${p[1]}" r="7" fill="#0a1020" stroke="#5ea0ff" stroke-width="3.5"/>
+      <text x="${p[0]}" y="${p[1]-16}" text-anchor="middle" font-size="24" font-weight="700" fill="#eef3ff" font-family="Archivo">${diario[i].matriculas}</text>
+      <text x="${p[0]}" y="${H-14}" text-anchor="middle" font-size="18" fill="#7d8cab" font-family="Archivo">${diario[i].dia.slice(8,10)}/${diario[i].dia.slice(5,7)}</text>`).join('')}`;
+}
+
+/* ================= dados ================= */
+// Dados ilustrativos (fictícios) — usados apenas com ?demo=1
+const DEMO_DATA = {
+  kpis:[{contest_code:'PRF',lt_hoje:12,lt_acum:380,arrecadado_hoje:420,arrecadado_acum:11500,grupo_hoje:8,grupo_acum:210,pesquisa_hoje:5,pesquisa_acum:160,webinar_hoje:0,webinar_acum:95,elite_hoje:1,elite_acum:9,receita_elite_acum:9800,invest_hoje:900,invest_acum:21000}],
+  funil:[{contest_code:'PRF',compradores_lt:380,grupo:210,pesquisa:160,webinar:95,pitch:70,elite:9}],
+  iscas:[
+    {bucket:'plano_quiz',vendas_hoje:5,vendas_acum:160,arrecadado:3200,investimento:4400,elite:4,cpa:27.5,roi_lt:0.73},
+    {bucket:'plano_pagina',vendas_hoje:2,vendas_acum:90,arrecadado:4500,investimento:7300,elite:2,cpa:81.1,roi_lt:0.62},
+    {bucket:'mapas',vendas_hoje:2,vendas_acum:60,arrecadado:2950,investimento:3200,elite:1,cpa:53.3,roi_lt:0.92},
+    {bucket:'raiox',vendas_hoje:3,vendas_acum:70,arrecadado:1400,investimento:2100,elite:2,cpa:30,roi_lt:0.67}],
+  semana:[{contest_code:'PRF',semana_inicio:'2026-06-29',lt_semana:180,arrecadado_semana:5200,elite_fechados_semana:4,receita_elite_semana:6400,invest_semana:14000}],
+  diario:[['2026-06-20',9],['2026-06-21',22],['2026-06-22',14],['2026-06-23',25],['2026-06-24',20],['2026-06-25',24],['2026-06-26',19],['2026-06-27',16],['2026-06-28',27],['2026-06-29',21],['2026-06-30',41],['2026-07-01',38],['2026-07-02',52],['2026-07-03',15]].map(([dia,matriculas])=>({contest_code:'PRF',dia,matriculas}))
+};
+
+let lastOk = 0;
+async function fetchData(){
+  if(DEMO){ DATA = DEMO_DATA; render(); return; }
+  if(!KEY){ $('overlay').classList.add('show'); return; }
+  try{
+    const r = await fetch(`${API_BASE}?k=${encodeURIComponent(KEY)}`, {cache:'no-store'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    DATA = await r.json();
+    lastOk = Date.now();
+    $('overlay').classList.remove('show');
+    $('status').classList.remove('err');
+    $('status-txt').textContent = 'ao vivo';
+    render();
+  }catch(e){
+    if(!DATA){
+      $('overlay-msg').textContent = 'Não foi possível carregar os dados ('+e.message+'). Verifique a conexão ou a chave de acesso.';
+      $('overlay').classList.add('show');
+    }else{
+      $('status').classList.add('err');
+      $('status-txt').textContent = 'sem conexão · dados de '+new Date(lastOk).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'});
+    }
+  }
+}
+fetchData();
+setInterval(fetchData, FETCH_MS);
+</script>
+</body>
+</html>
