@@ -557,29 +557,40 @@ function renderEvento(fid){
   const varAgg = {};
   (DATA.variantes||[]).filter(v=>String(v.funnel_id)===String(ev.funnel_id) && (!r || (v.dia>=r.ini && v.dia<=r.fim)))
     .forEach(v=>{
-      const a = varAgg[v.variant] = varAgg[v.variant]||{gasto:0,impressoes:0,cliques:0};
-      a.gasto+=v.gasto||0; a.impressoes+=v.impressoes||0; a.cliques+=v.cliques||0;
+      const a = varAgg[v.variant] = varAgg[v.variant]||{gasto:0,impressoes:0,cliques:0,compras:0};
+      a.gasto+=v.gasto||0; a.impressoes+=v.impressoes||0; a.cliques+=v.cliques||0; a.compras+=v.compras||0;
     });
   const vars = Object.entries(varAgg).map(([variant,a])=>({variant,...a,
     ctr: a.impressoes>0 ? 100*a.cliques/a.impressoes : null,
-    cpc: a.cliques>0 ? a.gasto/a.cliques : null})).sort((a,b)=>b.gasto-a.gasto);
+    cpc: a.cliques>0 ? a.gasto/a.cliques : null,
+    cpaMeta: a.compras>0 ? a.gasto/a.compras : null,
+    conv: a.cliques>0 && a.compras>0 ? 100*a.compras/a.cliques : null})).sort((a,b)=>b.gasto-a.gasto);
   const totGasto = vars.reduce((s,v)=>s+v.gasto,0);
+  const temCompras = vars.some(v=>v.compras>0);
   const bestCtr = vars.length>1 ? Math.max(...vars.filter(v=>v.ctr!=null).map(v=>v.ctr)) : null;
   const bestCpc = vars.length>1 ? Math.min(...vars.filter(v=>v.cpc!=null).map(v=>v.cpc)) : null;
-  const varHTML = vars.length ? `<div class="card"><h3>📄 Páginas · tráfego Meta ${r?'· no período':'· todo o período'}</h3>
+  const bestCpaMeta = temCompras && vars.length>1 ? Math.min(...vars.filter(v=>v.cpaMeta!=null).map(v=>v.cpaMeta)) : null;
+  const maisCompras = temCompras ? Math.max(...vars.map(v=>v.compras)) : null;
+  const varHTML = vars.length ? `<div class="card"><h3>📄 Páginas · ${temCompras?'conversão':'tráfego'} Meta ${r?'· no período':'· todo o período'}</h3>
     <div class="vwrap"><table class="vtable">
-      <tr><th>Página</th><th>Gasto</th><th>% verba</th><th>Impressões</th><th>Cliques</th><th>CTR</th><th>CPC</th></tr>
+      <tr><th>Página</th><th>Gasto</th><th>% verba</th>${temCompras?'<th>Compras</th><th>CPA</th><th>Conv.</th>':''}<th>Impressões</th><th>Cliques</th><th>CTR</th><th>CPC</th></tr>
       ${vars.map(v=>`<tr>
-        <td>${esc(VAR_NOME(v.variant))}${v.ctr===bestCtr?'<span class="vtag top">melhor CTR</span>':''}${v.cpc===bestCpc?'<span class="vtag top">menor CPC</span>':''}</td>
+        <td>${esc(VAR_NOME(v.variant))}${temCompras&&v.compras===maisCompras&&v.compras>0?'<span class="vtag top">mais compras</span>':''}${!temCompras&&v.ctr===bestCtr?'<span class="vtag top">melhor CTR</span>':''}${!temCompras&&v.cpc===bestCpc?'<span class="vtag top">menor CPC</span>':''}${temCompras&&v.cpaMeta===bestCpaMeta&&v.cpaMeta!=null?'<span class="vtag top">melhor CPA</span>':''}</td>
         <td>${fmtRk(v.gasto)}</td>
         <td>${totGasto>0?pct(v.gasto,totGasto):'—'}</td>
+        ${temCompras?`
+        <td class="${v.compras===maisCompras&&v.compras>0?'good':''}">${fmtI(v.compras)}</td>
+        <td class="${v.cpaMeta===bestCpaMeta&&v.cpaMeta!=null?'good':''}">${v.cpaMeta!=null?fmtR(v.cpaMeta):'—'}</td>
+        <td>${v.conv!=null?v.conv.toLocaleString('pt-BR',{maximumFractionDigits:2})+'%':'—'}</td>`:''}
         <td>${fmtI(v.impressoes)}</td>
         <td>${fmtI(v.cliques)}</td>
         <td class="${v.ctr===bestCtr?'good':''}">${v.ctr!=null?v.ctr.toLocaleString('pt-BR',{maximumFractionDigits:2})+'%':'—'}</td>
         <td class="${v.cpc===bestCpc?'good':''}">${v.cpc!=null?fmtR(v.cpc):'—'}</td>
       </tr>`).join('')}
     </table></div>
-    <div class="cpa-note">ℹ Ranking pelo tráfego (Meta). Vendas por página ainda não são rastreáveis — as UTMs não chegam ao checkout da Hubla.</div>
+    <div class="cpa-note">${temCompras
+      ?'ℹ Compras e CPA segundo a atribuição da Meta (pixel) — bom para comparar páginas entre si; o total oficial de vendas é o da Hubla.'
+      :'ℹ Ranking pelo tráfego (Meta). As compras por página aparecem aqui automaticamente assim que a carga do Meta passar a enviar o campo de conversões (ajuste no fluxo n8n).'}</div>
   </div>` : '';
 
   // CPA: só dias FECHADOS entram na linha — o gasto do Meta chega em cargas
@@ -661,8 +672,8 @@ DEMO_DATA.serie = [
   ...DEMO_DATA.evento_diario.map((d,i)=>({escopo:'evento',chave:'demo-ev',dia:d.dia,vendas:d.ingressos,arrecadado:Math.round(d.ingressos*19.9),invest:400+((i*211)%700),grupo:0,pesquisa:0,webinar:0,elite:0,receita_elite:0})),
 ];
 DEMO_DATA.variantes = DEMO_DATA.evento_diario.flatMap((d,i)=>
-  [['pv04',.38],['pv05',.25],['pv03',.16],['pv02',.11],['pv06',.06],['quizz',.04]].map(([v,p])=>
-    ({funnel_id:'demo-ev',variant:v,dia:d.dia,gasto:Math.round((400+((i*211)%700))*p),impressoes:Math.round(4000*p*(1+i*.1)),cliques:Math.round(120*p*(1+i*.08))})));
+  [['pv04',.38,2],['pv05',.25,3],['pv03',.16,1],['pv02',.11,1],['pv06',.06,2],['quizz',.04,0]].map(([v,p,c])=>
+    ({funnel_id:'demo-ev',variant:v,dia:d.dia,gasto:Math.round((400+((i*211)%700))*p),impressoes:Math.round(4000*p*(1+i*.1)),cliques:Math.round(120*p*(1+i*.08)),compras:c})));
 DEMO_DATA.isca_diaria = DEMO_DATA.diario.flatMap((d,i)=>
   [['plano_quiz',.4],['plano_pagina',.25],['mapas',.15],['raiox',.2]].map(([b,p])=>
     ({bucket:b,dia:d.dia,vendas:Math.round(d.matriculas*p),arrecadado:Math.round(d.matriculas*p*28),invest:Math.round((600+((i*137)%500))*p)})));
