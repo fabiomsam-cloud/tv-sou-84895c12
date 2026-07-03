@@ -86,6 +86,7 @@ header{display:flex;align-items:baseline;gap:1.4vw;margin-bottom:1.6vh}
 /* cards da tela de evento: fundo quente para diferenciar do perpétuo */
 .screen.evento .kpi{background:linear-gradient(160deg,#1d1210,#140b09);border-color:rgba(255,150,90,.16)}
 .screen.evento .kpi .acum{border-top-color:rgba(255,150,90,.16)}
+.screen.evento .scard,.screen.evento .chart-card{background:linear-gradient(160deg,#1d1210,#140b09);border-color:rgba(255,150,90,.16)}
 .evento-badge{font-family:var(--num);font-weight:700;font-size:2.2vh;letter-spacing:.18em;color:var(--orange);
   border:1px solid rgba(255,138,61,.45);border-radius:1vh;padding:.6vh 1vw;text-transform:uppercase;
   align-self:center;margin-bottom:1.4vh;background:rgba(255,138,61,.08)}
@@ -188,19 +189,30 @@ body.paused #pause-chip{display:flex}
       <div class="isca-grid" id="isca-grid"></div>
     </section>
 
-    <!-- TELA 4: EVENTO AO VIVO -->
+    <!-- TELA 4: SEMANA (PERPÉTUO) -->
+    <section class="screen" id="s3" data-title="Ritmo da Semana · Perpétuo">
+      <div class="sem-wrap">
+        <div class="sem-cards" id="sem-cards"></div>
+        <div class="chart-card">
+          <h3>Matrículas dia a dia · todo o período</h3>
+          <svg id="chart" preserveAspectRatio="none"></svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- TELA 5: EVENTO AO VIVO -->
     <section class="screen evento" id="s-evento" data-title="Evento · Profissão PRF">
       <div class="evento-badge" id="evento-badge">🎟 Evento ao Vivo</div>
       <div class="kpi-grid" id="evento-grid"></div>
     </section>
 
-    <!-- TELA 5: SEMANA -->
-    <section class="screen" id="s3" data-title="Ritmo da Semana">
+    <!-- TELA 6: RITMO DO EVENTO -->
+    <section class="screen evento" id="s-evento-ritmo" data-title="Ritmo do Evento · Profissão PRF">
       <div class="sem-wrap">
-        <div class="sem-cards" id="sem-cards"></div>
+        <div class="sem-cards" id="evsem-cards"></div>
         <div class="chart-card">
-          <h3>Matrículas dia a dia · últimos 14 dias</h3>
-          <svg id="chart" preserveAspectRatio="none"></svg>
+          <h3>Ingressos dia a dia · todo o período</h3>
+          <svg id="evchart" preserveAspectRatio="none"></svg>
         </div>
       </div>
     </section>
@@ -304,7 +316,7 @@ function render(){
   const f = (DATA.funil||[]).find(x=>x.contest_code===CONTEST) || {};
   const w = (DATA.semana||[]).find(x=>x.contest_code===CONTEST) || {};
   const iscas = DATA.iscas||[];
-  const diario = (DATA.diario||[]).filter(d=>d.contest_code===CONTEST).slice(-14);
+  const diario = (DATA.diario||[]).filter(d=>d.contest_code===CONTEST); // todo o período
 
   /* --- tela 1 --- */
   const receitaTotal = (k.arrecadado_acum||0) + (k.receita_elite_acum||0);
@@ -396,11 +408,28 @@ function render(){
     {lbl:'Receita Elite na semana',     v:fmtRk(w.receita_elite_semana),     ac:'var(--gold)'},
     {lbl:'Receita Elite acumulada',     v:fmtRk(k.receita_elite_acum),       ac:'var(--gold)'},
   ];
-  $('sem-cards').innerHTML = semCards.map(x=>`
+  const sCard = x => `
     <div class="scard" style="--ac:${x.ac}">
       <span class="s-lbl">${x.lbl}</span><span class="s-v" style="color:${x.ac}">${x.v}</span>
-    </div>`).join('');
-  drawChart(diario);
+    </div>`;
+  $('sem-cards').innerHTML = semCards.map(sCard).join('');
+  drawChart('chart', diario.map(d=>({dia:d.dia, valor:d.matriculas})), '#2f7bff', '#5ea0ff', '#0a1020');
+
+  /* --- tela ritmo do evento --- */
+  const evw = (DATA.evento_semana||[])[0];
+  const evd = (DATA.evento_diario||[]);
+  if(ev && evw){
+    document.getElementById('s-evento-ritmo').dataset.title = 'Ritmo do Evento · ' + evw.funnel_name;
+    const evRoiAcum = ev.invest_acum>0 ? (ev.arrecadado_acum||0)/ev.invest_acum : null;
+    $('evsem-cards').innerHTML = [
+      {lbl:'Ingressos na semana',      v:fmtI(evw.ingressos_semana),      ac:'var(--orange)'},
+      {lbl:'Arrecadado na semana',     v:fmtRk(evw.arrecadado_semana),    ac:'var(--green)'},
+      {lbl:'Investido na semana',      v:fmtRk(evw.invest_semana),        ac:'var(--amber)'},
+      {lbl:'Ingressos acumulados',     v:fmtI(ev.lt_acum),                ac:'var(--orange)'},
+      {lbl:'ROI dos ingressos',        v:fmtX(evRoiAcum),                 ac:roiCol(evRoiAcum)},
+    ].map(sCard).join('');
+    drawChart('evchart', evd.map(d=>({dia:d.dia, valor:d.ingressos})), '#ff8a3d', '#ffab6b', '#140b09');
+  }
 
   /* --- insights --- */
   const ins = [];
@@ -419,28 +448,37 @@ function render(){
   $('insights').innerHTML = ins.slice(0,3).map(i=>`<div class="ins" style="color:${i.c}">${i.t}</div>`).join('');
 }
 
-function drawChart(diario){
-  const svg = $('chart');
+// serie: [{dia:'YYYY-MM-DD', valor:n}] — rótulos se adaptam ao tamanho do período
+function drawChart(svgId, serie, cor, corLinha, corFundo){
+  const svg = $(svgId);
   const W=1000,H=380,PB=44,PT=30,PL=34,PR=34;
   svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
-  if(!diario.length){svg.innerHTML='';return}
-  const max = Math.max(...diario.map(d=>d.matriculas),1);
-  const n = diario.length;
+  if(!serie.length){svg.innerHTML='';return}
+  const max = Math.max(...serie.map(d=>d.valor),1);
+  const n = serie.length;
   const x = i => PL + (n===1?((W-PL-PR)/2):(i*(W-PL-PR)/(n-1)));
   const y = v => PT + (H-PT-PB)*(1-v/max);
-  const pts = diario.map((d,i)=>[x(i),y(d.matriculas)]);
+  const pts = serie.map((d,i)=>[x(i),y(d.valor)]);
   const line = pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
   const area = line + ` L ${pts[n-1][0].toFixed(1)} ${H-PB} L ${pts[0][0].toFixed(1)} ${H-PB} Z`;
+  const step = Math.max(1, Math.ceil(n/16));           // datas: no máx ~16 rótulos
+  const vStep = n>24 ? step : 1;                        // valores: todos até 24 pontos
+  const fs = n>24 ? 20 : 24;
+  const gid = 'ag-'+svgId;
   svg.innerHTML = `
-    <defs><linearGradient id="ag" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#2f7bff" stop-opacity=".45"/><stop offset="1" stop-color="#2f7bff" stop-opacity="0"/>
+    <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="${cor}" stop-opacity=".45"/><stop offset="1" stop-color="${cor}" stop-opacity="0"/>
     </linearGradient></defs>
-    <path d="${area}" fill="url(#ag)"/>
-    <path d="${line}" fill="none" stroke="#5ea0ff" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
-    ${pts.map((p,i)=>`
-      <circle cx="${p[0]}" cy="${p[1]}" r="7" fill="#0a1020" stroke="#5ea0ff" stroke-width="3.5"/>
-      <text x="${p[0]}" y="${p[1]-16}" text-anchor="middle" font-size="24" font-weight="700" fill="#eef3ff" font-family="Archivo">${diario[i].matriculas}</text>
-      <text x="${p[0]}" y="${H-14}" text-anchor="middle" font-size="18" fill="#7d8cab" font-family="Archivo">${diario[i].dia.slice(8,10)}/${diario[i].dia.slice(5,7)}</text>`).join('')}`;
+    <path d="${area}" fill="url(#${gid})"/>
+    <path d="${line}" fill="none" stroke="${corLinha}" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
+    ${pts.map((p,i)=>{
+      const showV = i%vStep===0 || i===n-1;
+      const showD = i%step===0 || i===n-1;
+      return `
+      <circle cx="${p[0]}" cy="${p[1]}" r="${n>24?5:7}" fill="${corFundo}" stroke="${corLinha}" stroke-width="3.5"/>
+      ${showV?`<text x="${p[0]}" y="${p[1]-16}" text-anchor="middle" font-size="${fs}" font-weight="700" fill="#eef3ff" font-family="Archivo">${serie[i].valor}</text>`:''}
+      ${showD?`<text x="${p[0]}" y="${H-14}" text-anchor="middle" font-size="18" fill="#7d8cab" font-family="Archivo">${serie[i].dia.slice(8,10)}/${serie[i].dia.slice(5,7)}</text>`:''}`;
+    }).join('')}`;
 }
 
 /* ================= dados ================= */
@@ -455,6 +493,8 @@ const DEMO_DATA = {
     {bucket:'raiox',vendas_hoje:3,vendas_acum:70,arrecadado:1400,investimento:2100,elite:2,cpa:30,roi_lt:0.67}],
   semana:[{contest_code:'PRF',semana_inicio:'2026-06-29',lt_semana:180,arrecadado_semana:5200,elite_fechados_semana:4,receita_elite_semana:6400,invest_semana:14000}],
   evento:[{funnel_name:'Profissão PRF — Julho 2026',contest_code:'PRF',lt_hoje:22,lt_acum:150,arrecadado_hoje:440,arrecadado_acum:2990,grupo_hoje:0,grupo_acum:0,pesquisa_hoje:0,pesquisa_acum:0,webinar_hoje:0,webinar_acum:0,elite_hoje:0,elite_acum:0,receita_elite_acum:0,invest_hoje:800,invest_acum:8600}],
+  evento_semana:[{funnel_name:'Profissão PRF — Julho 2026',semana_inicio:'2026-06-29',ingressos_semana:96,arrecadado_semana:1910,invest_semana:4200}],
+  evento_diario:[['2026-06-24',6],['2026-06-25',9],['2026-06-26',11],['2026-06-27',8],['2026-06-28',10],['2026-06-29',12],['2026-06-30',14],['2026-07-01',19],['2026-07-02',29],['2026-07-03',22]].map(([dia,ingressos])=>({funnel_name:'Profissão PRF — Julho 2026',dia,ingressos})),
   diario:[['2026-06-20',9],['2026-06-21',22],['2026-06-22',14],['2026-06-23',25],['2026-06-24',20],['2026-06-25',24],['2026-06-26',19],['2026-06-27',16],['2026-06-28',27],['2026-06-29',21],['2026-06-30',41],['2026-07-01',38],['2026-07-02',52],['2026-07-03',15]].map(([dia,matriculas])=>({contest_code:'PRF',dia,matriculas}))
 };
 
