@@ -248,12 +248,30 @@ function rangePer(){
     case '7d':     return {ini:addDias(h,-6),  fim:h};
     case '14d':    return {ini:addDias(h,-13), fim:h};
     case '30d':    return {ini:addDias(h,-29), fim:h};
-    case 'custom': return {ini:PER.ini||h, fim:PER.fim||h};
+    case 'custom': {
+      // só início → até hoje; só fim → desde o primeiro dia com dados
+      let ini = PER.ini || minDia(), fim = PER.fim || h;
+      if(ini > fim){ const a = ini; ini = fim; fim = a; }
+      return {ini, fim};
+    }
     default:       return null;
   }
 }
 window.setPer = t => {PER.tipo=t; route();};
-window.setPerData = (campo,val) => {if(val){PER[campo]=val; PER.tipo='custom'; route();}};
+// Menor dia com dado no banco — limita o calendário e serve de início padrão
+function minDia(){
+  const s = (DATA && DATA.serie) || [];
+  return s.length ? s.reduce((m,x)=>x.dia<m?x.dia:m, s[0].dia) : '2026-01-01';
+}
+// Aceita só datas completas e dentro do intervalo com dados; ignora anos
+// parciais (digitar "2026" dispara change com ano 0002 no meio da digitação)
+window.setPerData = (campo,val) => {
+  if(!val || val < minDia() || val > hojeBRT()) return;
+  PER[campo] = val;
+  PER.tipo = 'custom';
+  if(PER.ini && PER.fim && PER.ini > PER.fim){ const a = PER.ini; PER.ini = PER.fim; PER.fim = a; }
+  route();
+};
 const dmy = d => d ? d.slice(8,10)+'/'+d.slice(5,7) : '';
 function filtroHTML(){
   const r = rangePer();
@@ -261,9 +279,9 @@ function filtroHTML(){
   return `<div class="fbar">
     ${chips.map(([t,l])=>`<button class="chip ${PER.tipo===t?'on':''}" onclick="setPer('${t}')">${l}</button>`).join('')}
     ${PER.tipo==='custom'?`<div class="frange">
-      <input type="date" value="${PER.ini||''}" max="${hojeBRT()}" onchange="setPerData('ini',this.value)">
+      <input type="date" value="${PER.ini||''}" min="${minDia()}" max="${hojeBRT()}" onchange="setPerData('ini',this.value)">
       <span>→</span>
-      <input type="date" value="${PER.fim||''}" max="${hojeBRT()}" onchange="setPerData('fim',this.value)">
+      <input type="date" value="${PER.fim||''}" min="${minDia()}" max="${hojeBRT()}" onchange="setPerData('fim',this.value)">
     </div>`:''}
     ${r?`<span class="fdesc">${dmy(r.ini)} a ${dmy(r.fim)}</span>`:'<span class="fdesc">todo o período</span>'}
   </div>`;
