@@ -166,6 +166,7 @@ h2.sec{font-family:var(--num);font-weight:700;font-size:18px;letter-spacing:.18e
 .vtable tr:last-child td{border-bottom:none}
 .vtag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.08em;padding:2px 7px;border-radius:6px;margin-left:6px;vertical-align:middle}
 .vtag.top{color:var(--green);background:rgba(46,229,107,.12);border:1px solid rgba(46,229,107,.35)}
+.vtag.bump{color:var(--cyan);background:rgba(39,211,245,.12);border:1px solid rgba(39,211,245,.35)}
 
 /* ---------- overlay ---------- */
 #overlay{position:fixed;inset:0;z-index:9;display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px;
@@ -497,7 +498,8 @@ function renderPerpetuo(code){
       ['plano_quiz','plano_pagina','mapas','raiox'].map(b=>{
         const x = dados.find(i=>i.bucket===b)||{};
         const cpaCls = (cpaMed&&x.cpa) ? (x.cpa<=cpaMed?'good':(x.cpa<=cpaMed*1.3?'warn':'bad')) : '';
-        return `<div class="isca" style="--ac:${AC_ISCA[b]}"><h4 style="color:${AC_ISCA[b]}">${NAMES_ISCA[b]}</h4>
+        const bumpTag = (b==='mapas'||b==='raiox') ? '<span class="vtag bump">agora bump</span>' : '';
+        return `<div class="isca" style="--ac:${AC_ISCA[b]}"><h4 style="color:${AC_ISCA[b]}">${NAMES_ISCA[b]}${bumpTag}</h4>
           <div class="rows">
             ${r?'':`<div class="r"><span class="k">Hoje</span><span class="w">${fmtI(x.vendas_hoje)}</span></div>`}
             <div class="r"><span class="k">Vendas</span><span class="w">${fmtI(x.vendas_acum)}</span></div>
@@ -510,6 +512,21 @@ function renderPerpetuo(code){
       }).join('')}</div></div>` : '';
   }
 
+  // Order bumps do Plano (desde 15/07): venda conta no Plano; aqui acompanha o attach
+  const bumps = (DATA.bumps||[]).filter(bp=>bp.contest_code===code);
+  const bumpsHTML = bumps.length ? `<div><h2 class="sec">🧩 Order bumps do Plano</h2><div class="igrid">${
+    bumps.map(bp=>{
+      const ac = bp.product_code==='PRF_LT_003' ? 'var(--blue)' : 'var(--orange)';
+      return `<div class="isca" style="--ac:${ac}"><h4 style="color:${ac}">${esc(titulo(bp.product_name))}</h4>
+        <div class="rows">
+          <div class="r"><span class="k">Hoje</span><span class="w">${fmtI(bp.vendas_hoje)}</span></div>
+          <div class="r"><span class="k">Vendidos</span><span class="w">${fmtI(bp.vendas_acum)}</span></div>
+          <div class="r"><span class="k">Receita</span><span class="w good">${fmtRk(bp.receita_acum)}</span></div>
+          <div class="r"><span class="k">Attach rate</span><span class="w">${bp.attach_rate!=null?Math.round(100*bp.attach_rate)+'%':'—'}</span></div>
+        </div></div>`;
+    }).join('')}</div>
+    <div class="cpa-note">🧩 Desde 15/07 Mapas Mentais e Raio X não têm venda direta: entram como order bump no checkout do Plano. Cada fatura conta 1 matrícula (Plano) e a receita dos bumps soma na isca do Plano. Attach rate = % das vendas do Plano que levaram o bump.</div></div>` : '';
+
   const feed = (DATA.atividades||[]).filter(a=>a.contest_code===code && a.tipo!=='ingresso').slice(0,12);
 
   $('main').innerHTML = `<div class="det">
@@ -519,6 +536,7 @@ function renderPerpetuo(code){
     <div class="kgrid">${kpis}</div>
     <div><h2 class="sec">🔻 Funil de conversão${r?' · no período':''}</h2><div class="steps">${stepsHTML}</div></div>
     ${iscasHTML}
+    ${bumpsHTML}
     <div class="card"><h3>Matrículas dia a dia · ${r?'no período':'todo o período'}</h3>
       <div class="chart-scroll">${chartSVG(rows.map(d=>({dia:d.dia,valor:d.vendas||0})),'#2f7bff','#5ea0ff','#0a1020')}</div></div>
     ${r?'':`<div><h2 class="sec">📅 Semana atual</h2><div class="wgrid">
@@ -683,7 +701,10 @@ const DEMO_DATA = {
     {tipo:'elite',primeiro_nome:'Juliana',produto:'Mentoria Elite PRF',contest_code:'PRF',paid_at:new Date(Date.now()-64*60000).toISOString()},
     {tipo:'low_ticket',primeiro_nome:'Carlos',produto:'Raio X PRF',contest_code:'PRF',paid_at:new Date(Date.now()-95*60000).toISOString()},
     {tipo:'ingresso',primeiro_nome:'Amanda',produto:'Profissão PRF',contest_code:'PRF',funnel_id:'demo-ev',paid_at:new Date(Date.now()-140*60000).toISOString()},
-  ]
+  ],
+  bumps:[
+    {contest_code:'PRF',product_code:'PRF_LT_003',product_name:'50 Mapas Mentais PRF',vendas_hoje:3,vendas_acum:21,receita_acum:1005.9,vendas_principais:48,attach_rate:0.4375},
+    {contest_code:'PRF',product_code:'PRF_LT_002',product_name:'Raio X PRF',vendas_hoje:4,vendas_acum:27,receita_acum:537.3,vendas_principais:48,attach_rate:0.5625}]
 };
 DEMO_DATA.serie = [
   ...DEMO_DATA.diario.map((d,i)=>({escopo:'perpetuo',chave:'PRF',dia:d.dia,vendas:d.matriculas,arrecadado:Math.round(d.matriculas*28),invest:600+((i*137)%500),grupo:Math.round(d.matriculas*.55),pesquisa:Math.round(d.matriculas*.4),webinar:(i%4===3)?12:0,elite:(i%5===4)?1:0,receita_elite:(i%5===4)?1200:0})),

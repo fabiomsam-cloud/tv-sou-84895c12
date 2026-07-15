@@ -116,6 +116,9 @@ header{display:flex;align-items:baseline;gap:1.4vw;margin-bottom:1.6vh}
 .isca .r{display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid var(--line);padding-top:1.2vh}
 .isca .r .k{font-size:1.8vh;color:var(--dim);letter-spacing:.05em;text-transform:uppercase}
 .isca .r .w{font-family:var(--num);font-weight:700;font-size:3.4vh;font-variant-numeric:tabular-nums}
+.isca .bump-tag{font-family:var(--body);font-size:1.5vh;font-weight:700;letter-spacing:.12em;color:var(--cyan);
+  background:rgba(39,211,245,.12);border:1px solid rgba(39,211,245,.35);border-radius:.8vh;
+  padding:.4vh .5vw;vertical-align:middle;margin-left:.4vw;white-space:nowrap}
 .good{color:var(--green)}.warn{color:var(--amber)}.bad{color:var(--red)}
 
 /* ---------- tela 4: semana ---------- */
@@ -383,8 +386,26 @@ function render(){
   const totI = iscas.reduce((a,x)=>a+(x.investimento||0),0);
   const cpaMed = totV>0 ? totI/totV : null;
   const order = ['plano_quiz','plano_pagina','mapas','raiox'];
+  // Mapas e Raio X viraram order bumps do Plano (15/07): o card passa a acompanhar
+  // o bump; a venda direta histórica fica registrada nas linhas de baixo.
+  const BUMP_CODE = {mapas:'PRF_LT_003', raiox:'PRF_LT_002'};
   $('isca-grid').innerHTML = order.map(b=>{
     const x = iscas.find(i=>i.bucket===b) || {};
+    const bump = BUMP_CODE[b] ? (DATA.bumps||[]).find(bp=>bp.contest_code===CONTEST && bp.product_code===BUMP_CODE[b]) : null;
+    if(bump){
+      return `<div class="isca" style="--ac:${ISCA_AC[b]}">
+        <h3 style="color:${ISCA_AC[b]}">${NAMES[b]}<span class="bump-tag">🧩 ORDER BUMP</span></h3>
+        <div class="i-today"><span class="v">${fmtI(bump.vendas_hoje)}</span><span class="t">bumps<br>hoje</span></div>
+        <div class="rows">
+          <div class="r"><span class="k">Bumps acum.</span><span class="w">${fmtI(bump.vendas_acum)}</span></div>
+          <div class="r"><span class="k">Receita bumps</span><span class="w" style="color:var(--green)">${fmtRk(bump.receita_acum)}</span></div>
+          <div class="r"><span class="k">Attach rate</span><span class="w">${bump.attach_rate!=null?Math.round(100*bump.attach_rate)+'%':'—'}</span></div>
+          <div class="r"><span class="k">Vendas diretas</span><span class="w">${fmtI(x.vendas_acum)}</span></div>
+          <div class="r"><span class="k">Arrecadado direto</span><span class="w">${fmtRk(x.arrecadado)}</span></div>
+          <div class="r"><span class="k">Elite</span><span class="w" style="color:var(--gold)">${fmtI(x.elite)}</span></div>
+        </div>
+      </div>`;
+    }
     const cpaCls = (cpaMed && x.cpa) ? (x.cpa<=cpaMed?'good':(x.cpa<=cpaMed*1.3?'warn':'bad')) : '';
     return `<div class="isca" style="--ac:${ISCA_AC[b]}">
       <h3 style="color:${ISCA_AC[b]}">${NAMES[b]}</h3>
@@ -433,13 +454,18 @@ function render(){
 
   /* --- insights --- */
   const ins = [];
-  if(iscas.length){
-    const lead = [...iscas].sort((a,b)=>(b.vendas_acum||0)-(a.vendas_acum||0))[0];
+  const bumpsC = (DATA.bumps||[]).filter(b=>b.contest_code===CONTEST);
+  const bumpsHoje = bumpsC.reduce((a,b)=>a+(b.vendas_hoje||0),0);
+  if(bumpsHoje>0) ins.push({c:'var(--cyan)', t:`🧩 <b>${fmtI(bumpsHoje)}</b> order bumps vendidos hoje junto com o Plano`});
+  // Insights de CPA/ROI só das iscas ativas — Mapas e Raio X viraram bumps (sem tráfego próprio)
+  const iscasAtivas = iscas.filter(x=>!BUMP_CODE[x.bucket]);
+  if(iscasAtivas.length){
+    const lead = [...iscasAtivas].sort((a,b)=>(b.vendas_acum||0)-(a.vendas_acum||0))[0];
     ins.push({c:'var(--violet)', t:`<b>${NAMES[lead.bucket]}</b> lidera em volume (${fmtI(lead.vendas_acum)} vendas)`});
-    const roi = [...iscas].filter(x=>x.roi_lt!=null).sort((a,b)=>b.roi_lt-a.roi_lt)[0];
+    const roi = [...iscasAtivas].filter(x=>x.roi_lt!=null).sort((a,b)=>b.roi_lt-a.roi_lt)[0];
     if(roi) ins.push({c:'var(--green)', t:`Melhor ROI: <b>${NAMES[roi.bucket]}</b> (${roi.roi_lt.toLocaleString('pt-BR')}x)`});
     if(cpaMed){
-      const alerta = [...iscas].filter(x=>x.cpa && x.cpa>cpaMed*1.3).sort((a,b)=>b.cpa-a.cpa)[0];
+      const alerta = [...iscasAtivas].filter(x=>x.cpa && x.cpa>cpaMed*1.3).sort((a,b)=>b.cpa-a.cpa)[0];
       if(alerta) ins.push({c:'var(--red)', t:`⚠ CPA <b>${NAMES[alerta.bucket]}</b> +${Math.round(100*(alerta.cpa/cpaMed-1))}% vs média`});
     }
   }
@@ -495,7 +521,10 @@ const DEMO_DATA = {
   evento:[{funnel_name:'Profissão PRF — Julho 2026',contest_code:'PRF',lt_hoje:22,lt_acum:150,arrecadado_hoje:440,arrecadado_acum:2990,grupo_hoje:0,grupo_acum:0,pesquisa_hoje:0,pesquisa_acum:0,webinar_hoje:0,webinar_acum:0,elite_hoje:0,elite_acum:0,receita_elite_acum:0,invest_hoje:800,invest_acum:8600}],
   evento_semana:[{funnel_name:'Profissão PRF — Julho 2026',semana_inicio:'2026-06-29',ingressos_semana:96,arrecadado_semana:1910,invest_semana:4200}],
   evento_diario:[['2026-06-24',6],['2026-06-25',9],['2026-06-26',11],['2026-06-27',8],['2026-06-28',10],['2026-06-29',12],['2026-06-30',14],['2026-07-01',19],['2026-07-02',29],['2026-07-03',22]].map(([dia,ingressos])=>({funnel_name:'Profissão PRF — Julho 2026',dia,ingressos})),
-  diario:[['2026-06-20',9],['2026-06-21',22],['2026-06-22',14],['2026-06-23',25],['2026-06-24',20],['2026-06-25',24],['2026-06-26',19],['2026-06-27',16],['2026-06-28',27],['2026-06-29',21],['2026-06-30',41],['2026-07-01',38],['2026-07-02',52],['2026-07-03',15]].map(([dia,matriculas])=>({contest_code:'PRF',dia,matriculas}))
+  diario:[['2026-06-20',9],['2026-06-21',22],['2026-06-22',14],['2026-06-23',25],['2026-06-24',20],['2026-06-25',24],['2026-06-26',19],['2026-06-27',16],['2026-06-28',27],['2026-06-29',21],['2026-06-30',41],['2026-07-01',38],['2026-07-02',52],['2026-07-03',15]].map(([dia,matriculas])=>({contest_code:'PRF',dia,matriculas})),
+  bumps:[
+    {contest_code:'PRF',product_code:'PRF_LT_003',product_name:'50 Mapas Mentais PRF',vendas_hoje:3,vendas_acum:21,receita_acum:1005.9,vendas_principais:48,attach_rate:0.4375},
+    {contest_code:'PRF',product_code:'PRF_LT_002',product_name:'Raio X PRF',vendas_hoje:4,vendas_acum:27,receita_acum:537.3,vendas_principais:48,attach_rate:0.5625}]
 };
 
 let lastOk = 0;
