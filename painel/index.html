@@ -416,6 +416,7 @@ function kpiHTML(x){
     <div class="lbl">${x.ico} ${x.lbl}</div>
     <div class="v" style="color:${x.col}">${x.hoje}</div>
     <div class="a"><span>${x.tag||'hoje'} ▲</span><span>${x.aLbl||'acum.'} <b>${x.acum}</b></span></div>
+    ${x.extra?`<div class="a"><span>${x.extra.k}</span><b>${x.extra.v}</b></div>`:''}
   </div>`;
 }
 
@@ -449,7 +450,8 @@ function renderPerpetuo(code){
     {ico:'👥', lbl:'Grupo',       hoje:fmtI(k.grupo_hoje), acum:fmtI(k.grupo_acum), ac:'var(--cyan)', col:'var(--cyan)'},
     {ico:'📋', lbl:'Pesquisa',    hoje:fmtI(k.pesquisa_hoje), acum:fmtI(k.pesquisa_acum), ac:'var(--violet)', col:'var(--violet)'},
     {ico:'🖥️', lbl:'Webinário',   hoje:fmtI(k.webinar_hoje), acum:fmtI(k.webinar_acum), ac:'var(--orange)', col:'var(--orange)'},
-    {ico:'👑', lbl:'Elite',       hoje:fmtI(k.elite_hoje), acum:fmtI(k.elite_acum), ac:'var(--gold)', col:'var(--gold)'},
+    {ico:'👑', lbl:'Elite',       hoje:fmtI(k.elite_hoje), acum:fmtI(k.elite_acum), ac:'var(--gold)', col:'var(--gold)',
+       extra:{k:'Receita acum.', v:`<span style="color:var(--gold)">${fmtRk(k.receita_elite_acum)}</span>`}},
   ]).map(kpiHTML).join('');
 
   const steps = r ? [
