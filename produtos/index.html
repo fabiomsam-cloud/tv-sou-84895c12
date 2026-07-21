@@ -186,6 +186,7 @@ footer{margin-top:26px;color:var(--muted);font-size:11.5px;display:flex;justify-
         <button class="chip" data-c="Outros">Outros</button>
         <button class="chip" data-c="__sel">★ Seleção</button>
       </div>
+      <div class="chips" id="grupo-chips" style="display:none"></div>
       <input class="search" id="search" placeholder="Buscar produto…">
       <div class="chips"><button class="chip" id="btn-cfg">⚙ Produtos</button></div>
       <div class="pop" id="pop">
@@ -209,7 +210,14 @@ footer{margin-top:26px;color:var(--muted);font-size:11.5px;display:flex;justify-
 <div class="drawer" id="cfg">
   <button class="close" id="cfg-close">✕</button>
   <h3>Configurar produtos</h3>
-  <div class="dcat">Categoria manual (ou automática) e seleção personalizada — salvo no banco, vale em todos os dispositivos.</div>
+  <div class="dcat">Categoria manual (ou automática), seleção e grupos de funis — salvo no banco, vale em todos os dispositivos.</div>
+  <h4 style="margin-top:0">Grupos salvos (funis)</h4>
+  <div id="grp-list" style="margin-bottom:10px"></div>
+  <div style="display:flex;gap:8px;margin-bottom:18px">
+    <input class="search" id="grp-nome" placeholder="Nome do grupo (ex.: Funil PRF)" style="flex:1">
+    <button class="chip" id="grp-save" style="background:var(--gold);color:#161204;font-weight:700">Salvar seleção como grupo</button>
+  </div>
+  <h4>Produtos</h4>
   <input class="search" id="cfg-search" placeholder="Filtrar produtos…" style="width:100%;margin-bottom:10px">
   <div style="display:flex;gap:8px;margin-bottom:12px">
     <button class="chip" id="cfg-sel-all" style="background:var(--surface-2)">★ Selecionar visíveis</button>
@@ -252,7 +260,7 @@ function nDays(a,b){ return Math.round((Date.parse(b)-Date.parse(a))/864e5)+1; }
 
 /* ================= estado ================= */
 let RAW=null, DATA_MIN=null;
-let state={range:{mode:"12m"}, cat:"", q:"", sort:{col:"receita",dir:-1}};
+let state={range:{mode:"12m"}, cat:"", q:"", sort:{col:"receita",dir:-1}, grupoId:null};
 
 /* ================= boot ================= */
 (async function(){
@@ -286,6 +294,7 @@ function prep(){
     p.sel = !!c?.selecionado;
     RAW.prodMap[p.product_hubla_id]=p;
   }
+  renderGrupoChips();
   DATA_MIN = RAW.produto_dia.length ? RAW.produto_dia[0].dia : "2025-06-18";
   document.getElementById("sub-upd").textContent = new Date(RAW.generated_at).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});
   const df=document.getElementById("d-from"), dt=document.getElementById("d-to");
@@ -316,7 +325,10 @@ function windows(){
   const gran = len<=62 ? "dia" : "mes";
   return {from,to,pfrom,pto,gran,len};
 }
+function grupoAtivo(){ return (RAW.grupos||[]).find(g=>g.id===state.grupoId) || null; }
 function inCat(p){
+  const g = grupoAtivo();
+  if(g) return g.product_ids.includes(p.product_hubla_id);
   if(state.cat==="__sel") return p.sel;
   return !state.cat || p.cat===state.cat;
 }
@@ -663,7 +675,7 @@ function bulkSel(val){
   renderCfgList(); render();
 }
 document.getElementById("btn-cfg").addEventListener("click",()=>{
-  renderCfgList();
+  renderCfgList(); renderGrpList();
   document.getElementById("overlay").classList.add("open");
   document.getElementById("cfg").classList.add("open");
 });
@@ -671,6 +683,75 @@ document.getElementById("cfg-close").addEventListener("click",closeDrawer);
 document.getElementById("cfg-search").addEventListener("input",e=>{ cfgQ=e.target.value; renderCfgList(); });
 document.getElementById("cfg-sel-all").addEventListener("click",()=>bulkSel(true));
 document.getElementById("cfg-sel-none").addEventListener("click",()=>bulkSel(false));
+
+/* ---------- grupos salvos (funis) ---------- */
+async function postApi(body){
+  const r=await fetch(API+"?k="+encodeURIComponent(K),{method:"POST",
+    headers:{Authorization:"Bearer "+ANON, apikey:ANON, "Content-Type":"application/json"},
+    body:JSON.stringify(body)});
+  if(!r.ok) throw new Error("Erro "+r.status);
+  return r.json();
+}
+function renderGrupoChips(){
+  const el=document.getElementById("grupo-chips");
+  const gs=RAW.grupos||[];
+  el.style.display = gs.length ? "flex" : "none";
+  el.innerHTML = gs.map(g=>'<button class="chip'+(state.grupoId===g.id?" on":"")+'" data-gid="'+g.id+'" title="'+g.product_ids.length+' produtos">▶ '+g.nome+'</button>').join("");
+  el.querySelectorAll(".chip").forEach(b=>b.addEventListener("click",()=>{
+    state.grupoId = state.grupoId===b.dataset.gid ? null : b.dataset.gid;
+    state.cat="";
+    document.querySelectorAll("#cat-chips .chip").forEach(c=>c.classList.toggle("cat-on", c.dataset.c===""));
+    renderGrupoChips(); render();
+  }));
+}
+function renderGrpList(){
+  const el=document.getElementById("grp-list");
+  const gs=RAW.grupos||[];
+  el.innerHTML = gs.length ? gs.map(g=>
+    '<div class="crow"><span class="nm">▶ '+g.nome+'<small>'+g.product_ids.length+' produtos</small></span>'
+    +'<span class="pills">'
+    +'<button class="pill" data-act="usar" data-gid="'+g.id+'">Usar no painel</button>'
+    +'<button class="pill" data-act="editar" data-gid="'+g.id+'">Editar</button>'
+    +'<button class="pill" data-act="del" data-gid="'+g.id+'" style="color:var(--s8)">✕</button>'
+    +'</span></div>').join("")
+    : '<div class="hint">Nenhum grupo ainda — marque produtos abaixo, dê um nome e salve.</div>';
+  el.querySelectorAll(".pill").forEach(b=>b.addEventListener("click",async()=>{
+    const g=(RAW.grupos||[]).find(x=>x.id===b.dataset.gid); if(!g) return;
+    if(b.dataset.act==="usar"){
+      state.grupoId=g.id; state.cat="";
+      document.querySelectorAll("#cat-chips .chip").forEach(c=>c.classList.toggle("cat-on", c.dataset.c===""));
+      renderGrupoChips(); render(); closeDrawer();
+    }
+    if(b.dataset.act==="editar"){
+      const alvo=[];
+      for(const p of RAW.produtos){
+        const dentro=g.product_ids.includes(p.product_hubla_id);
+        if(p.sel!==dentro){ p.sel=dentro; alvo.push(p); }
+      }
+      if(alvo.length) postApi({items:alvo.map(p=>({id:p.product_hubla_id, categoria:p.override, selecionado:p.sel}))}).catch(()=>{});
+      document.getElementById("grp-nome").value=g.nome;
+      renderCfgList(); render();
+    }
+    if(b.dataset.act==="del"){
+      if(!confirm('Excluir o grupo "'+g.nome+'"?')) return;
+      try{ await postApi({delete_grupo:g.id}); }catch(e){ return; }
+      RAW.grupos=RAW.grupos.filter(x=>x.id!==g.id);
+      if(state.grupoId===g.id) state.grupoId=null;
+      renderGrpList(); renderGrupoChips(); render();
+    }
+  }));
+}
+document.getElementById("grp-save").addEventListener("click",async()=>{
+  const nome=document.getElementById("grp-nome").value.trim();
+  const ids=RAW.produtos.filter(p=>p.sel).map(p=>p.product_hubla_id);
+  if(!nome){ alert("Dê um nome ao grupo."); return; }
+  if(!ids.length){ alert("Marque ao menos um produto na lista abaixo (checkbox) antes de salvar."); return; }
+  try{
+    const r=await postApi({grupo:{nome, product_ids:ids}});
+    RAW.grupos=(RAW.grupos||[]).filter(g=>g.nome!==nome).concat([r.grupo]).sort((a,b)=>a.nome.localeCompare(b.nome));
+    renderGrpList(); renderGrupoChips();
+  }catch(e){ alert("Erro ao salvar grupo: "+e.message); }
+});
 
 function drawerChart(p,dAgg){
   const el=document.getElementById("dr-chart");
@@ -727,7 +808,9 @@ document.addEventListener("click",e=>{
 document.getElementById("cat-chips").addEventListener("click",e=>{
   const b=e.target.closest(".chip"); if(!b) return;
   document.querySelectorAll("#cat-chips .chip").forEach(c=>c.classList.remove("cat-on"));
-  b.classList.add("cat-on"); state.cat=b.dataset.c; render();
+  b.classList.add("cat-on"); state.cat=b.dataset.c;
+  state.grupoId=null; renderGrupoChips();
+  render();
 });
 document.getElementById("search").addEventListener("input",e=>{ state.q=e.target.value; renderTable(); });
 </script>
