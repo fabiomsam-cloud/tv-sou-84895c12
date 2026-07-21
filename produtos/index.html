@@ -216,9 +216,13 @@ footer{margin-top:26px;color:var(--muted);font-size:11.5px;display:flex;justify-
     </div>
   </header>
 
-  <div class="chips" id="view-chips" style="margin-top:14px;display:inline-flex">
+  <div class="chips" id="view-chips" style="margin-top:14px;display:inline-flex;flex-wrap:wrap">
     <button class="chip on" data-v="geral">📊 Visão geral</button>
     <button class="chip" data-v="reembolsos">↩ Reembolsos</button>
+    <button class="chip" data-v="inadimplencia">💰 Inadimplência</button>
+    <button class="chip" data-v="alunos">🎓 Alunos</button>
+    <button class="chip" data-v="assinaturas">🔁 Assinaturas</button>
+    <button class="chip" data-v="utm">🎯 UTMs</button>
   </div>
 
   <div id="app"><div class="loading">Carregando dados do SOU Data Core…</div></div>
@@ -284,7 +288,7 @@ function nDays(a,b){ return Math.round((Date.parse(b)-Date.parse(a))/864e5)+1; }
 
 /* ================= estado ================= */
 let RAW=null, DATA_MIN=null;
-let state={range:{mode:"12m"}, cat:"", q:"", sort:{col:"liquida",dir:-1}, grupoId:null, view:"geral"};
+let state={range:{mode:"12m"}, cat:"", q:"", sort:{col:"liquida",dir:-1}, grupoId:null, view:"geral", aluFiltro:"todos"};
 
 /* ================= boot ================= */
 (async function(){
@@ -407,6 +411,7 @@ function render(){
   AGG = computeAgg(W.from,W.to,W.gran);
   const P = W.pfrom ? computeAgg(W.pfrom,W.pto,null) : null;
   if(state.view==="reembolsos"){ renderReembolsos(P); return; }
+  if(AREAS[state.view]){ renderArea(state.view, P); return; }
   const app = document.getElementById("app");
   app.innerHTML = heroHtml(AGG,P)
     + '<div class="grid g-main"><div class="card"><div class="card-head"><div><h2>Receita líquida por categoria</h2>'
@@ -962,6 +967,408 @@ function exportReembCsv(){
   URL.revokeObjectURL(a.href);
 }
 
+/* ================= ÁREAS LAZY-LOAD ================= */
+const AREAS={inadimplencia:1, alunos:1, assinaturas:1, utm:1};
+RAW && (RAW.areas={});
+async function loadArea(nome){
+  RAW.areas=RAW.areas||{};
+  if(RAW.areas[nome]) return RAW.areas[nome];
+  const r=await fetch(API+"?k="+encodeURIComponent(K)+"&area="+nome,
+    {headers:{Authorization:"Bearer "+ANON, apikey:ANON}});
+  if(!r.ok) throw new Error("Erro "+r.status);
+  RAW.areas[nome]=await r.json();
+  return RAW.areas[nome];
+}
+function renderArea(nome, P){
+  const app=document.getElementById("app");
+  if(!RAW.areas || !RAW.areas[nome]){
+    app.innerHTML='<div class="loading">Carregando dados de '+nome+'…</div>';
+    loadArea(nome).then(()=>{ if(state.view===nome) render(); })
+      .catch(e=>{ app.innerHTML='<div class="err">Falha ao carregar: '+e.message+'</div>'; });
+    return;
+  }
+  if(nome==="inadimplencia") renderInad();
+  else if(nome==="alunos") renderAlunos();
+  else if(nome==="assinaturas") renderSub();
+  else if(nome==="utm") renderUtm(P);
+}
+function csvDownload(arquivo, head, linhas){
+  const esc=v=>'"'+String(v??"").replace(/"/g,'""')+'"';
+  const csv="﻿"+head.join(";")+"\n"+linhas.map(l=>l.map(esc).join(";")).join("\n");
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
+  a.download=arquivo; a.click(); URL.revokeObjectURL(a.href);
+}
+function barList(el, itens, cor){ // itens: [{nome, valor(html num), pct, extra}]
+  const max=Math.max(...itens.map(i=>i.pct),1);
+  el.innerHTML=itens.map(i=>'<div class="mrow"><div class="name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+i.nome+'">'+i.nome+'</div>'
+    +'<div class="track"><div class="fill" style="width:'+(i.pct/max*100)+'%;background:'+(i.cor||cor)+'"></div></div>'
+    +'<div class="num"><b>'+i.valor+'</b>'+(i.extra||"")+'</div></div>').join("")
+    || '<div class="hint" style="padding:20px 0;text-align:center">Sem dados no período</div>';
+}
+
+/* ---------- 💰 INADIMPLÊNCIA ---------- */
+function inadRows(){
+  return (RAW.areas.inadimplencia.inadimplencia||[]).filter(r=>{
+    if(r.data_criacao<W.from||r.data_criacao>W.to) return false;
+    const p=RAW.prodMap[r.product_hubla_id];
+    if(p) return inCat(p);
+    return !state.cat && !state.grupoId;
+  });
+}
+function renderInad(){
+  const rows=inadRows();
+  const alunosR=rows.filter(r=>r.tipo==="parcela_aluno");
+  const chk=rows.filter(r=>r.tipo==="checkout_abandonado");
+  const chkQuente=chk.filter(r=>r.ja_e_aluno);
+  const valor=rows.reduce((s,r)=>s+(r.total_value||0),0);
+  const valorAluno=alunosR.reduce((s,r)=>s+(r.total_value||0),0);
+  const comFone=rows.filter(r=>r.customer_phone).length;
+  const app=document.getElementById("app");
+  app.innerHTML='<div class="hero">'
+    +'<div class="tile bigr"><div class="lbl">Valor em aberto no período</div><div class="val">'+fmtBRL.format(valor)+'</div>'
+    +'<div class="delta">'+fmtN.format(rows.length)+' faturas não pagas · '+(rows.length?Math.round(comFone/rows.length*100):0)+'% com telefone</div></div>'
+    +tile("Parcelas de ALUNOS", fmtN.format(alunosR.length), '<div class="delta">'+fmtBRL.format(valorAluno)+' — prioridade Anne CS</div>')
+    +tile("Checkouts abandonados", fmtN.format(chk.length), '<div class="delta">venda não concluída</div>')
+    +tile("Abandonos de quem JÁ é aluno", fmtN.format(chkQuente.length), '<div class="delta">recuperação quente 🔥</div>')
+    +tile("Ticket médio em aberto", fmtBRL2.format(rows.length?valor/rows.length:0), '<div class="delta">por fatura</div>')
+    +tile("Com telefone p/ contato", fmtN.format(comFone), '<div class="delta">prontos p/ WhatsApp</div>')
+    +'</div>'
+    +'<div class="card" style="margin-bottom:12px"><div class="card-head"><div><h2>Produtos com mais dinheiro em aberto</h2><div class="hint">Período selecionado</div></div></div><div id="in-prod"></div></div>'
+    +'<div class="card tbl-card" style="margin-bottom:12px"><div class="card-head"><div><h2>🎯 Alunos inadimplentes (parcelas/renovações)</h2><div class="hint" id="in-hint-a"></div></div>'
+    +'<button class="btn-csv" data-csv="aluno">⬇ CSV p/ Anne CS</button></div><div class="tbl-wrap" id="in-tbl-a"></div></div>'
+    +'<div class="card tbl-card"><div class="card-head"><div><h2>Checkouts abandonados</h2><div class="hint" id="in-hint-c"></div></div>'
+    +'<button class="btn-csv" data-csv="checkout">⬇ CSV</button></div><div class="tbl-wrap" id="in-tbl-c"></div>'
+    +'<div class="foot-note">🔥 = já é aluno de outro produto. Filtro de período usa a data de criação da fatura. Use a busca no topo.</div></div>';
+  const top=Object.values(rows.reduce((m,r)=>{ const k=r.product_hubla_id;
+    (m[k]=m[k]||{nome:r.product_name,v:0,n:0}); m[k].v+=r.total_value||0; m[k].n++; return m; },{}))
+    .sort((a,b)=>b.v-a.v).slice(0,8);
+  barList(document.getElementById("in-prod"), top.map(t=>({nome:t.nome, pct:t.v, valor:fmtC(t.v), extra:fmtN.format(t.n)+" faturas"})), getCss("--s4"));
+  renderInadTables();
+  document.querySelectorAll("[data-csv]").forEach(b=>b.addEventListener("click",()=>{
+    const tipo=b.dataset.csv==="aluno"?"parcela_aluno":"checkout_abandonado";
+    const rs=inadFiltered().filter(r=>r.tipo===tipo);
+    csvDownload("inadimplencia_"+b.dataset.csv+"_"+W.from+"_a_"+W.to+".csv",
+      ["nome","email","telefone","produto","valor","parcela","data_criacao","vencimento","dias_atraso","metodo","ja_e_aluno"],
+      rs.map(r=>[r.customer_name,r.customer_email,r.customer_phone,r.product_name,
+        String(r.total_value??"").replace(".",","),
+        r.smart_installment_current?r.smart_installment_current+"/"+r.smart_installment_total:"",
+        r.data_criacao,r.due_date||"",r.dias_atraso,r.payment_method||"",r.ja_e_aluno?"sim":"não"]));
+  }));
+}
+function inadFiltered(){
+  const q=state.q.trim().toUpperCase();
+  return inadRows().filter(r=>!q
+    || (r.customer_name||"").toUpperCase().includes(q)
+    || (r.customer_email||"").toUpperCase().includes(q)
+    || (r.product_name||"").toUpperCase().includes(q));
+}
+function inadTbl(rs, cap){
+  return '<table><thead><tr><th style="text-align:left;padding-left:22px">Lead</th><th style="text-align:left">Contato</th>'
+    +'<th style="text-align:left">Produto</th><th>Valor</th><th>Parcela</th><th>Criada</th><th>Vencimento</th><th>Atraso</th><th>Método</th></tr></thead><tbody>'
+    +rs.slice(0,cap).map(r=>'<tr>'
+      +'<td>'+(r.customer_name||"—")+(r.ja_e_aluno&&r.tipo==="checkout_abandonado"?" 🔥":"")+'</td>'
+      +'<td style="text-align:left;color:var(--ink-2)">'+(r.customer_email||"—")+'<br><span style="color:var(--muted)">'+(r.customer_phone||"")+'</span></td>'
+      +'<td style="text-align:left;max-width:220px;overflow:hidden;text-overflow:ellipsis" title="'+(r.product_name||"")+'">'+(r.product_name||"—")+'</td>'
+      +'<td><b style="color:var(--ink)">'+fmtBRL.format(r.total_value||0)+'</b></td>'
+      +'<td>'+(r.smart_installment_current?r.smart_installment_current+"/"+r.smart_installment_total:"—")+'</td>'
+      +'<td>'+dataBR(r.data_criacao)+'</td>'
+      +'<td>'+(r.due_date?dataBR(r.due_date):"—")+'</td>'
+      +'<td class="'+(r.dias_atraso>30?"reemb-hi":"")+'">'+r.dias_atraso+'d</td>'
+      +'<td>'+(r.payment_method||"—")+'</td></tr>').join("")+'</tbody></table>';
+}
+function renderInadTables(){
+  const f=inadFiltered();
+  const a=f.filter(r=>r.tipo==="parcela_aluno").sort((x,y)=>(y.total_value||0)-(x.total_value||0));
+  const c=f.filter(r=>r.tipo==="checkout_abandonado").sort((x,y)=>(y.ja_e_aluno?1:0)-(x.ja_e_aluno?1:0)||(y.total_value||0)-(x.total_value||0));
+  document.getElementById("in-hint-a").textContent=fmtN.format(a.length)+" faturas · "+fmtC(a.reduce((s,r)=>s+(r.total_value||0),0))+(a.length>300?" (mostrando 300 — exporte o CSV)":"");
+  document.getElementById("in-hint-c").textContent=fmtN.format(c.length)+" faturas — 🔥 primeiro"+(c.length>300?" (mostrando 300 — exporte o CSV)":"");
+  document.getElementById("in-tbl-a").innerHTML=inadTbl(a,300);
+  document.getElementById("in-tbl-c").innerHTML=inadTbl(c,300);
+}
+
+/* ---------- 🎓 ALUNOS ---------- */
+function renderAlunos(){
+  const all=RAW.areas.alunos.alunos||[];
+  const multi=all.filter(a=>a.n_produtos>=2);
+  const mono=all.filter(a=>a.n_produtos===1);
+  const ltvTot=all.reduce((s,a)=>s+(a.ltv_liquido||0),0);
+  const campeoes=all.slice().sort((a,b)=>(b.ltv_liquido||0)-(a.ltv_liquido||0)).slice(0,20);
+  const app=document.getElementById("app");
+  app.innerHTML='<div class="hero">'
+    +'<div class="tile big"><div class="lbl">Alunos pagantes (histórico)</div><div class="val">'+fmtN.format(all.length)+'</div>'
+    +'<div class="delta">'+fmtN.format(AGG.novos)+' alunos novos no período selecionado</div></div>'
+    +tile("Multi-produto", fmtN.format(multi.length), '<div class="delta">'+(all.length?(multi.length/all.length*100).toLocaleString("pt-BR",{maximumFractionDigits:1}):0)+'% da base compra de novo</div>')
+    +tile("LTV líquido médio", fmtBRL2.format(all.length?ltvTot/all.length:0), '<div class="delta">por aluno, histórico</div>')
+    +tile("LTV total da base", fmtC(ltvTot), '<div class="delta">líquido acumulado</div>')
+    +tile("Só 1 produto", fmtN.format(mono.length), '<div class="delta">leads de cross-sell 🎯</div>')
+    +tile("Campeão", fmtBRL2.format(campeoes[0]?.ltv_liquido||0), '<div class="delta">'+(campeoes[0]?.nome||"—").split(" ")[0]+' · '+(campeoes[0]?.n_produtos||0)+' produtos</div>')
+    +'</div>'
+    +'<div class="grid g-two"><div class="card"><div class="card-head"><div><h2>Distribuição por nº de produtos</h2><div class="hint">Base completa</div></div></div><div id="al-dist"></div></div>'
+    +'<div class="card"><div class="card-head"><div><h2>🏆 Alunos campeões (top LTV líquido)</h2><div class="hint">Clique p/ raio-x</div></div></div><div class="tbl-wrap" id="al-top" style="max-height:320px;overflow-y:auto"></div></div></div>'
+    +'<div class="card tbl-card"><div class="card-head"><div><h2>Base de alunos</h2><div class="hint" id="al-hint"></div></div>'
+    +'<div style="display:flex;gap:8px;align-items:center"><div class="chips" id="al-filtro">'
+    +'<button class="chip'+(state.aluFiltro==="todos"?" on":"")+'" data-f="todos">Todos</button>'
+    +'<button class="chip'+(state.aluFiltro==="multi"?" on":"")+'" data-f="multi">Multi-produto</button>'
+    +'<button class="chip'+(state.aluFiltro==="mono"?" on":"")+'" data-f="mono">Cross-sell (1 produto)</button></div>'
+    +'<button class="btn-csv" id="al-csv">⬇ CSV</button></div></div><div class="tbl-wrap" id="al-tbl"></div>'
+    +'<div class="foot-note">LTV = tudo que o aluno já pagou (líquido). Tabela é a base histórica completa (período não filtra). Busca no topo por nome/e-mail/produto.</div></div>';
+  const d1=mono.length, d2=all.filter(a=>a.n_produtos===2).length, d3=all.filter(a=>a.n_produtos>=3).length;
+  barList(document.getElementById("al-dist"),[
+    {nome:"1 produto", pct:d1, valor:fmtN.format(d1), extra:(all.length?Math.round(d1/all.length*100):0)+"%"},
+    {nome:"2 produtos", pct:d2, valor:fmtN.format(d2), extra:(all.length?Math.round(d2/all.length*100):0)+"%"},
+    {nome:"3+ produtos", pct:d3, valor:fmtN.format(d3), extra:(all.length?Math.round(d3/all.length*100):0)+"%"},
+  ], getCss("--s1"));
+  document.getElementById("al-top").innerHTML='<table><tbody>'
+    +campeoes.map((a,i)=>'<tr data-ak="'+a.aluno_key+'"><td style="padding-left:22px;width:30px;color:var(--gold);font-weight:700">'+(i+1)+'º</td>'
+      +'<td style="text-align:left">'+(a.nome||"—")+(a.tem_elite?' <span class="badge dp" style="background:var(--gold-soft);color:var(--gold)">ELITE</span>':"")
+      +'<br><span style="color:var(--muted);font-size:11px">'+(a.email||"")+'</span></td>'
+      +'<td><b style="color:var(--ink)">'+fmtBRL.format(a.ltv_liquido||0)+'</b></td>'
+      +'<td>'+a.n_produtos+' prod.</td></tr>').join("")+'</tbody></table>';
+  renderAluTable();
+  document.getElementById("al-filtro").addEventListener("click",e=>{
+    const b=e.target.closest(".chip"); if(!b) return;
+    state.aluFiltro=b.dataset.f;
+    document.querySelectorAll("#al-filtro .chip").forEach(c=>c.classList.toggle("on", c.dataset.f===state.aluFiltro));
+    renderAluTable();
+  });
+  document.getElementById("al-csv").addEventListener("click",()=>{
+    const rs=aluFiltered();
+    csvDownload("alunos_"+state.aluFiltro+".csv",
+      ["nome","email","telefone","n_produtos","matriculas","ltv_liquido","primeira_compra","ultima_compra","tem_elite","reembolsos","produtos"],
+      rs.map(a=>[a.nome,a.email,a.phone,a.n_produtos,a.matriculas,String(a.ltv_liquido??"").replace(".",","),
+        a.primeira_compra,a.ultima_compra,a.tem_elite?"sim":"não",a.reembolsos,a.produtos]));
+  });
+  document.getElementById("al-top").querySelectorAll("tr").forEach(tr=>tr.addEventListener("click",()=>openAluno(tr.dataset.ak)));
+}
+function aluFiltered(){
+  const all=RAW.areas.alunos.alunos||[];
+  const base= state.aluFiltro==="multi"? all.filter(a=>a.n_produtos>=2)
+    : state.aluFiltro==="mono"? all.filter(a=>a.n_produtos===1) : all;
+  const q=state.q.trim().toUpperCase();
+  return base.filter(a=>!q || (a.nome||"").toUpperCase().includes(q)
+    || (a.email||"").toUpperCase().includes(q) || (a.produtos||"").toUpperCase().includes(q))
+    .sort((a,b)=>(b.ltv_liquido||0)-(a.ltv_liquido||0));
+}
+function renderAluTable(){
+  const rs=aluFiltered();
+  document.getElementById("al-hint").textContent=fmtN.format(rs.length)+" alunos · LTV somado "+fmtC(rs.reduce((s,a)=>s+(a.ltv_liquido||0),0))+(rs.length>500?" (mostrando 500 — use busca/CSV)":"");
+  document.getElementById("al-tbl").innerHTML='<table><thead><tr><th style="text-align:left;padding-left:22px">Aluno</th>'
+    +'<th style="text-align:left">Contato</th><th>Produtos</th><th>Matrículas</th><th>LTV líquido</th><th>1ª compra</th><th>Última</th><th>Reemb.</th></tr></thead><tbody>'
+    +rs.slice(0,500).map(a=>'<tr data-ak="'+a.aluno_key+'">'
+      +'<td>'+(a.nome||"—")+(a.tem_elite?' <span class="badge dp" style="background:var(--gold-soft);color:var(--gold)">E</span>':"")+'</td>'
+      +'<td style="text-align:left;color:var(--ink-2)">'+(a.email||"—")+'<br><span style="color:var(--muted)">'+(a.phone||"")+'</span></td>'
+      +'<td><b style="color:var(--ink)">'+a.n_produtos+'</b></td>'
+      +'<td>'+fmtN.format(a.matriculas)+'</td>'
+      +'<td><b style="color:var(--ink)">'+fmtBRL.format(a.ltv_liquido||0)+'</b></td>'
+      +'<td>'+(a.primeira_compra?dataBR(a.primeira_compra):"—")+'</td>'
+      +'<td>'+(a.ultima_compra?dataBR(a.ultima_compra):"—")+'</td>'
+      +'<td>'+(a.reembolsos||"—")+'</td></tr>').join("")+'</tbody></table>';
+  document.getElementById("al-tbl").querySelectorAll("tr[data-ak]").forEach(tr=>tr.addEventListener("click",()=>openAluno(tr.dataset.ak)));
+}
+function openAluno(ak){
+  const a=(RAW.areas.alunos.alunos||[]).find(x=>x.aluno_key===ak); if(!a) return;
+  const dr=document.getElementById("drawer");
+  dr.innerHTML='<button class="close" id="dr-close">✕</button><h3>'+(a.nome||"Aluno")+'</h3>'
+    +'<div class="dcat">'+(a.email||"")+' · '+(a.phone||"")+'</div>'
+    +'<div class="dgrid">'
+    +dstat("LTV líquido",fmtBRL2.format(a.ltv_liquido||0))+dstat("Total bruto",fmtBRL2.format(a.total_bruto||0))+dstat("Produtos",a.n_produtos)
+    +dstat("Matrículas",a.matriculas)+dstat("1ª compra",a.primeira_compra?dataBR(a.primeira_compra):"—")+dstat("Última compra",a.ultima_compra?dataBR(a.ultima_compra):"—")
+    +dstat("Tem Elite",a.tem_elite?"Sim":"Não")+dstat("Reembolsos",a.reembolsos||0)+dstat("Perfil",a.n_produtos>=2?"Multi-produto":"Cross-sell 🎯")
+    +'</div><h4>Produtos adquiridos</h4><div style="color:var(--ink-2);font-size:13px;line-height:1.8">'
+    +(a.produtos||"—").split(" · ").map(p=>'• '+p).join("<br>")+'</div>';
+  document.getElementById("overlay").classList.add("open"); dr.classList.add("open");
+  document.getElementById("dr-close").onclick=closeDrawer;
+}
+
+/* ---------- 🔁 ASSINATURAS ---------- */
+function subBadge(st){
+  return st==="em_dia"? '<span class="badge rb" style="background:rgba(12,163,12,.15);color:var(--good)">EM DIA</span>'
+    : st==="atrasada"? '<span class="badge dp">ATRASADA</span>'
+    : st==="encerrada"? '<span class="badge cb">ENCERRADA</span>'
+    : '<span class="badge rb">NUNCA PAGOU</span>';
+}
+function renderSub(){
+  const d=RAW.areas.assinaturas;
+  const subs=(d.assinaturas||[]).filter(s=>{ const p=RAW.prodMap[s.product_hubla_id]; return p? inCat(p) : (!state.cat&&!state.grupoId); });
+  const emDia=subs.filter(s=>s.status_assinatura==="em_dia");
+  const atras=subs.filter(s=>s.status_assinatura==="atrasada");
+  const enc=subs.filter(s=>s.status_assinatura==="encerrada");
+  const mrr=emDia.reduce((s,x)=>{
+    const media=x.faturas_pagas? x.liquida_total/x.faturas_pagas : 0;
+    return s + (x.plano==="Anual"? media/12 : media);
+  },0);
+  const eventos=(d.eventos||[]).filter(e=>["subscription.expiring","subscription.renewal_disabled","subscription.deactivated"].includes(e.event_type))
+    .sort((a,b)=>(b.quando||"").localeCompare(a.quando||""));
+  const app=document.getElementById("app");
+  app.innerHTML='<div class="hero">'
+    +'<div class="tile big"><div class="lbl">MRR aproximado (em dia)</div><div class="val">'+fmtBRL.format(mrr)+'</div>'
+    +'<div class="delta">média líquida/mês das assinaturas em dia</div></div>'
+    +tile("Assinaturas em dia", fmtN.format(emDia.length), '<div class="delta">pagaram dentro do ciclo</div>')
+    +tile("Atrasadas", fmtN.format(atras.length), '<div class="delta" style="color:var(--s4)">cobrar agora</div>')
+    +tile("Encerradas", fmtN.format(enc.length), '<div class="delta">churn histórico</div>')
+    +tile("Nunca pagaram", fmtN.format(subs.filter(s=>s.status_assinatura==="nunca_pagou").length), '<div class="delta">adesão sem pagamento</div>')
+    +tile("Renovações pagas (hist.)", fmtN.format(subs.reduce((s,x)=>s+x.renovacoes_pagas,0)), '<div class="delta">total da base</div>')
+    +'</div>'
+    +'<div class="card tbl-card" style="margin-bottom:12px"><div class="card-head"><div><h2>📡 Radar de churn (sinais do webhook)</h2>'
+    +'<div class="hint">expirando / renovação desligada / desativada — desde 23/06, mais recentes primeiro</div></div>'
+    +'<button class="btn-csv" id="su-csv-ev">⬇ CSV</button></div><div class="tbl-wrap" id="su-radar"></div></div>'
+    +'<div class="card tbl-card"><div class="card-head"><div><h2>Assinaturas (Mensal/Anual)</h2><div class="hint" id="su-hint">Estado atual — não filtra por período</div></div>'
+    +'<button class="btn-csv" id="su-csv">⬇ CSV</button></div><div class="tbl-wrap" id="su-tbl"></div>'
+    +'<div class="foot-note">Status derivado das faturas (em dia = pagou dentro do ciclo +15d). Busca no topo.</div></div>';
+  document.getElementById("su-radar").innerHTML='<table><thead><tr><th style="text-align:left;padding-left:22px">Sinal</th><th>Quando</th>'
+    +'<th style="text-align:left">Aluno</th><th style="text-align:left">Contato</th><th style="text-align:left">Produto</th><th>Auto-renova</th></tr></thead><tbody>'
+    +eventos.slice(0,150).map(e=>{
+      const b= e.event_type==="subscription.deactivated"? '<span class="badge cb">DESATIVADA</span>'
+        : e.event_type==="subscription.renewal_disabled"? '<span class="badge dp">RENOV. DESLIGADA</span>'
+        : '<span class="badge rb">EXPIRANDO</span>';
+      return '<tr><td style="text-align:left;padding-left:22px">'+b+'</td>'
+        +'<td>'+(e.quando? new Date(e.quando).toLocaleDateString("pt-BR"):"—")+'</td>'
+        +'<td style="text-align:left">'+(e.nome||"—")+'</td>'
+        +'<td style="text-align:left;color:var(--ink-2)">'+(e.email||"")+'<br><span style="color:var(--muted)">'+(e.phone||"")+'</span></td>'
+        +'<td style="text-align:left;max-width:200px;overflow:hidden;text-overflow:ellipsis">'+(e.product_name||"—")+'</td>'
+        +'<td>'+(e.auto_renew?"Sim":"Não")+'</td></tr>'; }).join("")+'</tbody></table>';
+  renderSubTable();
+  document.getElementById("su-csv").addEventListener("click",()=>{
+    const rs=subFiltered();
+    csvDownload("assinaturas.csv",["nome","email","telefone","produto","plano","status","primeira_paga","ultima_paga","renovacoes_pagas","liquida_total"],
+      rs.map(s=>[s.customer_name,s.customer_email,s.customer_phone,s.product_name,s.plano,s.status_assinatura,
+        s.primeira_paga?.slice(0,10)||"",s.ultima_paga?.slice(0,10)||"",s.renovacoes_pagas,String(s.liquida_total??"").replace(".",",")]));
+  });
+  document.getElementById("su-csv-ev").addEventListener("click",()=>{
+    csvDownload("radar_churn.csv",["sinal","quando","nome","email","telefone","produto","auto_renova"],
+      eventos.map(e=>[e.event_type,e.quando?.slice(0,10)||"",e.nome,e.email,e.phone,e.product_name,e.auto_renew?"sim":"não"]));
+  });
+}
+function subFiltered(){
+  const d=RAW.areas.assinaturas;
+  const subs=(d.assinaturas||[]).filter(s=>{ const p=RAW.prodMap[s.product_hubla_id]; return p? inCat(p) : (!state.cat&&!state.grupoId); });
+  const q=state.q.trim().toUpperCase();
+  const ordem={atrasada:0, em_dia:1, nunca_pagou:2, encerrada:3};
+  return subs.filter(s=>!q || (s.customer_name||"").toUpperCase().includes(q)
+    || (s.customer_email||"").toUpperCase().includes(q) || (s.product_name||"").toUpperCase().includes(q))
+    .sort((a,b)=>ordem[a.status_assinatura]-ordem[b.status_assinatura] || (b.ultima_paga||"").localeCompare(a.ultima_paga||""));
+}
+function renderSubTable(){
+  const rs=subFiltered();
+  document.getElementById("su-hint").textContent=fmtN.format(rs.length)+" assinaturas — atrasadas primeiro";
+  document.getElementById("su-tbl").innerHTML='<table><thead><tr><th style="text-align:left;padding-left:22px">Aluno</th>'
+    +'<th style="text-align:left">Contato</th><th style="text-align:left">Produto</th><th>Plano</th><th>Status</th>'
+    +'<th>1ª paga</th><th>Última paga</th><th>Renov.</th><th>Líquida total</th></tr></thead><tbody>'
+    +rs.slice(0,400).map(s=>'<tr>'
+      +'<td>'+(s.customer_name||"—")+'</td>'
+      +'<td style="text-align:left;color:var(--ink-2)">'+(s.customer_email||"—")+'<br><span style="color:var(--muted)">'+(s.customer_phone||"")+'</span></td>'
+      +'<td style="text-align:left;max-width:200px;overflow:hidden;text-overflow:ellipsis" title="'+(s.product_name||"")+'">'+(s.product_name||"—")+'</td>'
+      +'<td>'+s.plano+'</td><td>'+subBadge(s.status_assinatura)+'</td>'
+      +'<td>'+(s.primeira_paga? new Date(s.primeira_paga).toLocaleDateString("pt-BR"):"—")+'</td>'
+      +'<td>'+(s.ultima_paga? new Date(s.ultima_paga).toLocaleDateString("pt-BR"):"—")+'</td>'
+      +'<td>'+s.renovacoes_pagas+'</td>'
+      +'<td><b style="color:var(--ink)">'+fmtBRL.format(s.liquida_total||0)+'</b></td></tr>').join("")+'</tbody></table>';
+}
+
+/* ---------- 🎯 UTMs ---------- */
+function renderUtm(){
+  const d=RAW.areas.utm;
+  const rows=(d.utm_dia||[]).filter(r=>r.dia>=W.from && r.dia<=W.to);
+  const tot=rows.reduce((s,r)=>s+r.liquida,0);
+  const comUtm=rows.filter(r=>r.utm_source!=="(sem utm)");
+  const liqUtm=comUtm.reduce((s,r)=>s+r.liquida,0);
+  const cob=tot? liqUtm/tot*100 : 0;
+  const porSrc={};
+  for(const r of comUtm){ const s=porSrc[r.utm_source]||(porSrc[r.utm_source]={liq:0,mat:0,fat:0});
+    s.liq+=r.liquida; s.mat+=r.matriculas; s.fat+=r.faturas; }
+  const srcs=Object.entries(porSrc).sort((a,b)=>b[1].liq-a[1].liq);
+  const porMed={};
+  for(const r of comUtm){ const m=porMed[r.utm_medium]||(porMed[r.utm_medium]={liq:0,mat:0});
+    m.liq+=r.liquida; m.mat+=r.matriculas; }
+  const app=document.getElementById("app");
+  app.innerHTML='<div class="hero">'
+    +'<div class="tile big"><div class="lbl">Líquida atribuída (com UTM)</div><div class="val">'+fmtBRL.format(liqUtm)+'</div>'
+    +'<div class="delta">'+cob.toLocaleString("pt-BR",{maximumFractionDigits:1})+'% da receita do período tem UTM</div></div>'
+    +tile("Cobertura de UTM", cob.toLocaleString("pt-BR",{maximumFractionDigits:1})+"%", '<div class="delta">padrão novo ativo desde jul/26 — janelas antigas têm menos</div>')
+    +tile("Matrículas atribuídas", fmtN.format(comUtm.reduce((s,r)=>s+r.matriculas,0)), '<div class="delta">pela UTM da fatura de entrada</div>')
+    +tile("Canal líder", srcs[0]?.[0]||"—", '<div class="delta">'+fmtC(srcs[0]?.[1].liq||0)+' líquidos</div>')
+    +tile("Sem UTM", fmtC(tot-liqUtm), '<div class="delta">receita não atribuída</div>')
+    +tile("Canais ativos", fmtN.format(srcs.length), '<div class="delta">sources distintos no período</div>')
+    +'</div>'
+    +'<div class="grid g-two"><div class="card"><div class="card-head"><div><h2>Por canal (source)</h2><div class="hint">Líquida no período · só vendas com UTM</div></div></div><div id="ut-src"></div></div>'
+    +'<div class="card"><div class="card-head"><div><h2>Por medium</h2><div class="hint">pago × orgânico × outros</div></div></div><div id="ut-med"></div></div></div>'
+    +'<div class="card" style="margin-bottom:12px"><div class="card-head"><div><h2>Evolução dos 5 maiores canais</h2><div class="hint">Líquida · '+(W.gran==="dia"?"por dia":"por mês")+'</div></div><div class="legend" id="ut-lg"></div></div><div id="ut-serie"></div></div>'
+    +'<div class="card tbl-card"><div class="card-head"><div><h2>Campanhas</h2><div class="hint" id="ut-hint"></div></div>'
+    +'<button class="btn-csv" id="ut-csv">⬇ CSV</button></div><div class="tbl-wrap" id="ut-camp"></div>'
+    +'<div class="foot-note">Atenção: cobertura de UTM varia por período (30% no histórico total, ~80% nas últimas semanas). Categoria/grupo não filtram esta aba (UTM não carrega produto).</div></div>';
+  barList(document.getElementById("ut-src"), srcs.slice(0,12).map(([s,v])=>({nome:s, pct:v.liq, valor:fmtC(v.liq),
+    extra:fmtN.format(v.mat)+" matr. · ticket "+fmtBRL.format(v.mat?v.liq/v.mat:0)})), getCss("--s1"));
+  const meds=Object.entries(porMed).sort((a,b)=>b[1].liq-a[1].liq);
+  barList(document.getElementById("ut-med"), meds.map(([m,v])=>({nome:m, pct:v.liq, valor:fmtC(v.liq), extra:fmtN.format(v.mat)+" matr."})), getCss("--s2"));
+  utmSerie(srcs.slice(0,5).map(s=>s[0]));
+  renderUtmCamp();
+  document.getElementById("ut-csv").addEventListener("click",()=>{
+    const rs=utmCampFiltered();
+    csvDownload("utm_campanhas.csv",["mes","source","campanha","faturas","liquida"],
+      rs.map(r=>[r.mes,r.utm_source,r.utm_campaign,r.faturas,String(r.liquida??"").replace(".",",")]));
+  });
+}
+function utmSerie(top){
+  const el=document.getElementById("ut-serie");
+  const cores=[getCss("--s1"),getCss("--s2"),getCss("--s3"),getCss("--s4"),getCss("--s8")];
+  document.getElementById("ut-lg").innerHTML=top.map((s,i)=>'<span><i style="background:'+cores[i]+'"></i>'+s+'</span>').join("");
+  const bs=bucketList(W.from,W.to,W.gran);
+  const data={}; top.forEach(s=>data[s]=bs.map(()=>0));
+  for(const r of RAW.areas.utm.utm_dia){
+    if(r.dia<W.from||r.dia>W.to) continue;
+    const i=top.indexOf(r.utm_source); if(i<0) continue;
+    const bi=bs.indexOf(bucketOf(r.dia,W.gran)); if(bi>=0) data[r.utm_source][bi]+=r.liquida;
+  }
+  const W_=980,H=260,padL=56,padR=10,padT=12,padB=30,iw=W_-padL-padR,ih=H-padT-padB;
+  const max=niceMax(Math.max(...top.flatMap(s=>data[s]),1)*1.08);
+  const x=i=> padL + (bs.length>1? i/(bs.length-1)*iw : iw/2);
+  const y=v=> padT+ih - v/max*ih;
+  let svg='<svg viewBox="0 0 '+W_+' '+H+'">';
+  for(let i=0;i<=4;i++){ const gy=padT+ih-ih*i/4;
+    svg+='<line class="gridline" x1="'+padL+'" x2="'+(W_-padR)+'" y1="'+gy+'" y2="'+gy+'"/>';
+    svg+='<text class="axis axis-t" x="'+(padL-8)+'" y="'+(gy+3.5)+'" text-anchor="end">'+fmtC(max*i/4).replace("R$ ","")+'</text>'; }
+  const lbEvery=Math.ceil(bs.length/12);
+  bs.forEach((b,i)=>{ if(i%lbEvery===0) svg+='<text class="axis" x="'+x(i)+'" y="'+(H-8)+'" text-anchor="middle">'+bLabel(b)+'</text>'; });
+  top.forEach((s,si)=>{
+    const pts=data[s].map((v,i)=>x(i).toFixed(1)+","+y(v).toFixed(1)).join(" L");
+    svg+='<path d="M'+pts+'" fill="none" stroke="'+cores[si]+'" stroke-width="2" stroke-linejoin="round"/>';
+  });
+  bs.forEach((b,i)=>{ svg+='<rect class="bar-hit" data-i="'+i+'" x="'+(x(i)-iw/bs.length/2)+'" y="'+padT+'" width="'+(iw/bs.length)+'" height="'+ih+'"/>'; });
+  svg+='<line class="baseline" x1="'+padL+'" x2="'+(W_-padR)+'" y1="'+(padT+ih)+'" y2="'+(padT+ih)+'"/></svg>';
+  el.innerHTML=svg;
+  el.querySelectorAll(".bar-hit").forEach(r=>{
+    r.addEventListener("mousemove",e=>{ const i=+r.dataset.i;
+      const rows=top.map((s,si)=>'<div class="t-row"><span><i style="background:'+cores[si]+'"></i>'+s+'</span><b>'+fmtBRL.format(data[s][i])+'</b></div>').join("");
+      showTip('<div class="t-title">'+bTitle(bs[i])+'</div>'+rows, e.clientX, e.clientY); });
+    r.addEventListener("mouseleave",hideTip);
+  });
+}
+function utmCampFiltered(){
+  const mIni=W.from.slice(0,7), mFim=W.to.slice(0,7);
+  const q=state.q.trim().toUpperCase();
+  const agg={};
+  for(const r of RAW.areas.utm.utm_campanha||[]){
+    if(r.mes<mIni||r.mes>mFim) continue;
+    if(r.utm_source==="(sem utm)") continue;
+    if(q && !(r.utm_campaign||"").toUpperCase().includes(q) && !(r.utm_source||"").toUpperCase().includes(q)) continue;
+    const k=r.utm_source+"|"+r.utm_campaign;
+    const a=agg[k]||(agg[k]={utm_source:r.utm_source, utm_campaign:r.utm_campaign, mes:r.mes, faturas:0, liquida:0});
+    a.faturas+=r.faturas; a.liquida+=r.liquida; if(r.mes>a.mes) a.mes=r.mes;
+  }
+  return Object.values(agg).sort((a,b)=>b.liquida-a.liquida);
+}
+function renderUtmCamp(){
+  const rs=utmCampFiltered();
+  document.getElementById("ut-hint").textContent=fmtN.format(rs.length)+" campanhas com venda no período (meses "+W.from.slice(0,7)+" a "+W.to.slice(0,7)+")";
+  document.getElementById("ut-camp").innerHTML='<table><thead><tr><th style="text-align:left;padding-left:22px">Source</th>'
+    +'<th style="text-align:left">Campanha</th><th>Faturas</th><th>Líquida</th></tr></thead><tbody>'
+    +rs.slice(0,200).map(r=>'<tr><td style="text-align:left;padding-left:22px">'+r.utm_source+'</td>'
+      +'<td style="text-align:left;max-width:420px;overflow:hidden;text-overflow:ellipsis" title="'+(r.utm_campaign||"")+'">'+r.utm_campaign+'</td>'
+      +'<td>'+fmtN.format(r.faturas)+'</td>'
+      +'<td><b style="color:var(--ink)">'+fmtBRL.format(r.liquida)+'</b></td></tr>').join("")+'</tbody></table>';
+}
+
 /* ---------- filtros ---------- */
 document.getElementById("view-chips").addEventListener("click",e=>{
   const b=e.target.closest(".chip"); if(!b) return;
@@ -1000,7 +1407,13 @@ document.getElementById("cat-chips").addEventListener("click",e=>{
   render();
 });
 document.getElementById("search").addEventListener("input",e=>{ state.q=e.target.value;
-  if(state.view==="reembolsos") renderReembLeads(); else renderTable(); });
+  const v=state.view;
+  if(v==="reembolsos") renderReembLeads();
+  else if(v==="inadimplencia" && RAW.areas?.inadimplencia) renderInadTables();
+  else if(v==="alunos" && RAW.areas?.alunos) renderAluTable();
+  else if(v==="assinaturas" && RAW.areas?.assinaturas) renderSubTable();
+  else if(v==="utm" && RAW.areas?.utm) renderUtmCamp();
+  else renderTable(); });
 </script>
 </body>
 </html>
