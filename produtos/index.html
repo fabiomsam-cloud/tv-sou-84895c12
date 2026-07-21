@@ -213,7 +213,7 @@ let RAW=null, MESES=[], state={months:12, cat:"", q:"", sort:{col:"receita",dir:
 function categoria(p){
   const n = (p.product_name||"").toUpperCase();
   if(/^(ELITE|COMBO)|DIAMANTE|MENTORIA/.test(n)) return "Elite";
-  const ticket = p.vendas_pagas ? p.receita_bruta/p.vendas_pagas : 0;
+  const ticket = p.ticket_matricula || (p.faturas_pagas ? p.receita_bruta/p.faturas_pagas : 0);
   return ticket <= 80 ? "Low Ticket" : "Outros";
 }
 
@@ -238,11 +238,11 @@ function windows(){
 function inCat(p){ return !state.cat || p.cat===state.cat; }
 
 function aggregate(meses){
-  const a = {receita:0, liquida:0, vendas:0, novos:0, reemb:0, reembVal:0, cb:0};
+  const a = {receita:0, liquida:0, mat:0, valMat:0, novos:0, reemb:0, reembVal:0, cb:0};
   for(const p of RAW.produtos){
     if(!inCat(p)) continue;
     for(const m of meses){
-      const r=p.monthly[m]; if(r){ a.receita+=r.receita_bruta; a.liquida+=r.receita_liquida; a.vendas+=r.vendas; a.novos+=r.alunos_novos; }
+      const r=p.monthly[m]; if(r){ a.receita+=r.receita_bruta; a.liquida+=r.receita_liquida; a.mat+=r.matriculas; a.valMat+=r.valor_matriculas; a.novos+=r.alunos_novos; }
       const rb=p.reembM[m]; if(rb){ a.reemb+=rb.reembolsos; a.cb+=rb.chargebacks; a.reembVal+=rb.valor; }
     }
   }
@@ -278,16 +278,16 @@ function deltaHtml(cur, prev, fmt, invert){
 }
 
 function heroHtml(A,P){
-  const tk = A.vendas? A.receita/A.vendas : 0;
-  const tkP = P && P.vendas? P.receita/P.vendas : null;
-  const txR = (A.reemb+A.cb)/(A.vendas+A.reemb+A.cb||1)*100;
-  const txRP = P? (P.reemb+P.cb)/(P.vendas+P.reemb+P.cb||1)*100 : null;
+  const tk = A.mat? A.valMat/A.mat : 0;
+  const tkP = P && P.mat? P.valMat/P.mat : null;
+  const txR = (A.reemb+A.cb)/(A.mat+A.reemb+A.cb||1)*100;
+  const txRP = P? (P.reemb+P.cb)/(P.mat+P.reemb+P.cb||1)*100 : null;
   return '<div class="hero">'
-   +'<div class="tile big"><div class="lbl">Receita bruta</div><div class="val">'+fmtBRL.format(A.receita)+'</div>'+deltaHtml(A.receita,P?.receita)+'</div>'
+   +'<div class="tile big"><div class="lbl">Receita bruta (caixa)</div><div class="val">'+fmtBRL.format(A.receita)+'</div>'+deltaHtml(A.receita,P?.receita)+'</div>'
    +tile("Receita líquida", fmtBRL.format(A.liquida), deltaHtml(A.liquida,P?.liquida))
-   +tile("Vendas pagas", fmtN.format(A.vendas), deltaHtml(A.vendas,P?.vendas))
+   +tile("Matrículas novas", fmtN.format(A.mat), deltaHtml(A.mat,P?.mat))
    +tile("Alunos novos", fmtN.format(A.novos), deltaHtml(A.novos,P?.novos))
-   +tile("Ticket médio", fmtBRL2.format(tk), deltaHtml(tk,tkP))
+   +tile("Ticket p/ matrícula", fmtBRL2.format(tk), deltaHtml(tk,tkP))
    +tile("Taxa de reembolso", txR.toLocaleString("pt-BR",{maximumFractionDigits:1})+"%", deltaHtml(txR,txRP,null,true))
    +'</div>';
 }
@@ -360,7 +360,7 @@ function chartMetodos(meses){
     const pc=d.v/tot*100;
     return '<div class="mrow"><div class="name">'+m+'</div>'
       +'<div class="track"><div class="fill" style="width:'+pc+'%;background:'+(cols[m]||getCss("--s8"))+'"></div></div>'
-      +'<div class="num"><b>'+pc.toLocaleString("pt-BR",{maximumFractionDigits:1})+'%</b>'+fmtC(d.v)+' · '+fmtN.format(d.n)+' vendas</div></div>';
+      +'<div class="num"><b>'+pc.toLocaleString("pt-BR",{maximumFractionDigits:1})+'%</b>'+fmtC(d.v)+' · '+fmtN.format(d.n)+' faturas</div></div>';
   }).join("");
 }
 
@@ -421,25 +421,26 @@ function spark(p,meses,color){
 /* ---------- tabela ---------- */
 const COLS=[
   {k:"nome",l:"Produto",align:"left"},
-  {k:"vendas",l:"Vendas"},
-  {k:"receita",l:"Receita bruta"},
+  {k:"mat",l:"Matrículas"},
+  {k:"faturas",l:"Faturas"},
+  {k:"receita",l:"Receita (caixa)"},
   {k:"liquida",l:"Líquida"},
   {k:"novos",l:"Alunos novos"},
-  {k:"ticket",l:"Ticket"},
+  {k:"ticket",l:"Ticket matríc."},
   {k:"reembPc",l:"Reemb. %"},
   {k:"ativas",l:"Mat. ativas"},
   {k:"trend",l:"Tendência"},
 ];
 function renderTable(meses){
   const rowsData=RAW.produtos.filter(inCat).map(p=>{
-    let receita=0,liquida=0,vendas=0,novos=0,reemb=0,cb=0;
-    for(const m of meses){ const r=p.monthly[m]; if(r){ receita+=r.receita_bruta; liquida+=r.receita_liquida; vendas+=r.vendas; novos+=r.alunos_novos; }
+    let receita=0,liquida=0,mat=0,valMat=0,faturas=0,novos=0,reemb=0,cb=0;
+    for(const m of meses){ const r=p.monthly[m]; if(r){ receita+=r.receita_bruta; liquida+=r.receita_liquida; mat+=r.matriculas; valMat+=r.valor_matriculas; faturas+=r.faturas; novos+=r.alunos_novos; }
       const rb=p.reembM[m]; if(rb){ reemb+=rb.reembolsos; cb+=rb.chargebacks; } }
-    return {p, nome:p.product_name, vendas, receita, liquida, novos,
-      ticket: vendas?receita/vendas:0,
-      reembPc: (vendas+reemb+cb)? (reemb+cb)/(vendas+reemb+cb)*100 : 0,
+    return {p, nome:p.product_name, mat, faturas, receita, liquida, novos,
+      ticket: mat?valMat/mat:0,
+      reembPc: (mat+reemb+cb)? (reemb+cb)/(mat+reemb+cb)*100 : 0,
       ativas: p.ativas||0 };
-  }).filter(d=>d.vendas>0||d.receita>0);
+  }).filter(d=>d.faturas>0||d.receita>0);
   const q=state.q.trim().toUpperCase();
   const shown=rowsData.filter(d=>!q||d.nome.toUpperCase().includes(q));
   const {col,dir}=state.sort;
@@ -451,7 +452,8 @@ function renderTable(meses){
     const pc=d.receita/totR*100;
     h+='<tr data-id="'+d.p.product_hubla_id+'">'
      +'<td title="'+d.nome+'"><span class="cat-dot" style="background:'+CAT[d.p.cat]+'"></span>'+d.nome+'</td>'
-     +'<td>'+fmtN.format(d.vendas)+'</td>'
+     +'<td><b style="color:var(--ink)">'+fmtN.format(d.mat)+'</b></td>'
+     +'<td>'+fmtN.format(d.faturas)+'</td>'
      +'<td><b style="color:var(--ink)">'+fmtBRL.format(d.receita)+'</b><span class="pct-track"><span class="pct-fill" style="width:'+Math.min(pc*4,100)+'%"></span></span></td>'
      +'<td>'+fmtBRL.format(d.liquida)+'</td>'
      +'<td>'+fmtN.format(d.novos)+'</td>'
@@ -474,8 +476,8 @@ function renderTable(meses){
 function openDrawer(id){
   const p=RAW.prodMap[id]; if(!p) return;
   const {cur}=windows();
-  let receita=0,vendas=0,novos=0;
-  for(const m of cur){ const r=p.monthly[m]; if(r){ receita+=r.receita_bruta; vendas+=r.vendas; novos+=r.alunos_novos; } }
+  let receita=0,mat=0,novos=0;
+  for(const m of cur){ const r=p.monthly[m]; if(r){ receita+=r.receita_bruta; mat+=r.matriculas; novos+=r.alunos_novos; } }
   const dr=document.getElementById("drawer");
   dr.innerHTML='<button class="close" id="dr-close">✕</button>'
    +'<h3>'+p.product_name+'</h3>'
@@ -483,10 +485,10 @@ function openDrawer(id){
    +' · 1ª venda '+(p.primeira_venda? new Date(p.primeira_venda).toLocaleDateString("pt-BR"):"—")
    +' · última '+(p.ultima_venda? new Date(p.ultima_venda).toLocaleDateString("pt-BR"):"—")+'</div>'
    +'<div class="dgrid">'
-   +dstat("Receita (período)",fmtC(receita))+dstat("Vendas (período)",fmtN.format(vendas))+dstat("Alunos novos",fmtN.format(novos))
-   +dstat("Receita histórica",fmtC(p.receita_bruta))+dstat("Alunos únicos",fmtN.format(p.alunos_unicos))+dstat("Ticket histórico",fmtBRL2.format(p.vendas_pagas?p.receita_bruta/p.vendas_pagas:0))
-   +dstat("Matrículas ativas",fmtN.format(p.ativas||0))+dstat("Reembolsos",fmtN.format(p.reembolsos)+(p.chargebacks?" +"+p.chargebacks+" cb":""))+dstat("Taxa reembolso",(p.taxa_reembolso_pct??0).toLocaleString("pt-BR")+"%")
-   +'</div><h4>Receita mês a mês (período selecionado)</h4><div id="dr-chart"></div>';
+   +dstat("Receita (período)",fmtC(receita))+dstat("Matrículas (período)",fmtN.format(mat))+dstat("Alunos novos",fmtN.format(novos))
+   +dstat("Matrículas históricas",fmtN.format(p.matriculas||0))+dstat("Alunos únicos",fmtN.format(p.alunos_unicos))+dstat("Ticket p/ matrícula",fmtBRL2.format(p.ticket_matricula||0))
+   +dstat("Matrículas ativas",fmtN.format(p.ativas||0))+dstat("Matríc. reembolsadas",fmtN.format(p.matriculas_reemb||0))+dstat("Taxa reembolso",(p.taxa_reembolso_pct??0).toLocaleString("pt-BR")+"%")
+   +'</div><h4>Receita mês a mês — caixa (período selecionado)</h4><div id="dr-chart"></div>';
   drawerChart(p,cur);
   document.getElementById("overlay").classList.add("open"); dr.classList.add("open");
   document.getElementById("dr-close").onclick=closeDrawer;
@@ -498,7 +500,7 @@ addEventListener("keydown",e=>{ if(e.key==="Escape") closeDrawer(); });
 
 function drawerChart(p,meses){
   const el=document.getElementById("dr-chart");
-  const data=meses.map(m=>({mes:m, v:p.monthly[m]?p.monthly[m].receita_bruta:0, n:p.monthly[m]?p.monthly[m].vendas:0}));
+  const data=meses.map(m=>({mes:m, v:p.monthly[m]?p.monthly[m].receita_bruta:0, n:p.monthly[m]?p.monthly[m].matriculas:0}));
   const W=500,H=200,padL=50,padR=6,padT=10,padB=28,iw=W-padL-padR,ih=H-padT-padB;
   const max=niceMax(Math.max(...data.map(d=>d.v),1)*1.1);
   const bw=Math.min(34,iw/data.length*.62), step=iw/data.length;
@@ -517,7 +519,7 @@ function drawerChart(p,meses){
   el.innerHTML=s;
   el.querySelectorAll(".bar-hit").forEach(r=>{
     r.addEventListener("mousemove",e=>{ const d=data[+r.dataset.i];
-      showTip('<div class="t-title">'+mesLabel(d.mes)+'</div><div class="t-row"><span>Receita</span><b>'+fmtBRL.format(d.v)+'</b></div><div class="t-row"><span>Vendas</span><b>'+fmtN.format(d.n)+'</b></div>',e.clientX,e.clientY); });
+      showTip('<div class="t-title">'+mesLabel(d.mes)+'</div><div class="t-row"><span>Receita</span><b>'+fmtBRL.format(d.v)+'</b></div><div class="t-row"><span>Matrículas</span><b>'+fmtN.format(d.n)+'</b></div>',e.clientX,e.clientY); });
     r.addEventListener("mouseleave",hideTip);
   });
 }
