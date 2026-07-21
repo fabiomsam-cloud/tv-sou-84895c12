@@ -134,6 +134,18 @@ tbody tr:hover{background:rgba(255,255,255,.035)}
 .dstat .v{font-family:var(--disp);font-weight:700;font-size:16.5px;margin-top:4px}
 .drawer h4{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin:20px 0 10px;font-weight:600}
 
+/* config de produtos */
+.crow{display:flex;align-items:center;gap:10px;padding:9px 2px;border-bottom:1px solid rgba(255,255,255,.05)}
+.crow .nm{flex:1;min-width:0;font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.crow .nm small{display:block;color:var(--muted);font-size:11px}
+.crow input[type=checkbox]{width:16px;height:16px;accent-color:var(--gold);cursor:pointer;flex-shrink:0}
+.pills{display:flex;gap:3px;flex-shrink:0}
+.pill{border:1px solid var(--ring);background:transparent;color:var(--muted);font-size:10.5px;font-weight:600;
+  padding:4px 8px;border-radius:7px;cursor:pointer;font-family:var(--body)}
+.pill:hover{color:var(--ink)}
+.pill.on{background:var(--surface);color:var(--ink);border-color:rgba(217,165,63,.55)}
+.pill.auto.on{border-color:var(--ring);color:var(--ink-2)}
+
 /* tooltip */
 #tip{position:fixed;z-index:60;background:#242422;border:1px solid var(--ring);border-radius:10px;padding:10px 13px;
   font-size:12.5px;pointer-events:none;opacity:0;transition:opacity .1s;box-shadow:0 10px 30px rgba(0,0,0,.5);max-width:280px}
@@ -172,8 +184,10 @@ footer{margin-top:26px;color:var(--muted);font-size:11.5px;display:flex;justify-
         <button class="chip" data-c="Elite">Elite</button>
         <button class="chip" data-c="Low Ticket">Low Ticket</button>
         <button class="chip" data-c="Outros">Outros</button>
+        <button class="chip" data-c="__sel">★ Seleção</button>
       </div>
       <input class="search" id="search" placeholder="Buscar produto…">
+      <div class="chips"><button class="chip" id="btn-cfg">⚙ Produtos</button></div>
       <div class="pop" id="pop">
         <label>De</label><input type="date" id="d-from">
         <label>Até</label><input type="date" id="d-to">
@@ -192,6 +206,18 @@ footer{margin-top:26px;color:var(--muted);font-size:11.5px;display:flex;justify-
 
 <div class="overlay" id="overlay"></div>
 <div class="drawer" id="drawer"></div>
+<div class="drawer" id="cfg">
+  <button class="close" id="cfg-close">✕</button>
+  <h3>Configurar produtos</h3>
+  <div class="dcat">Categoria manual (ou automática) e seleção personalizada — salvo no banco, vale em todos os dispositivos.</div>
+  <input class="search" id="cfg-search" placeholder="Filtrar produtos…" style="width:100%;margin-bottom:10px">
+  <div style="display:flex;gap:8px;margin-bottom:12px">
+    <button class="chip" id="cfg-sel-all" style="background:var(--surface-2)">★ Selecionar visíveis</button>
+    <button class="chip" id="cfg-sel-none" style="background:var(--surface-2)">Limpar seleção</button>
+    <span class="hint" id="cfg-count" style="margin-left:auto;align-self:center"></span>
+  </div>
+  <div id="cfg-list"></div>
+</div>
 <div id="tip"></div>
 
 <script>
@@ -250,7 +276,16 @@ function categoria(p){
 
 function prep(){
   RAW.prodMap = {};
-  for(const p of RAW.produtos){ p.cat = categoria(p); RAW.prodMap[p.product_hubla_id]=p; }
+  const cfg = {};
+  for(const c of (RAW.config||[])) cfg[c.product_hubla_id]=c;
+  for(const p of RAW.produtos){
+    p.autoCat = categoria(p);
+    const c = cfg[p.product_hubla_id];
+    p.override = c?.categoria || null;
+    p.cat = p.override || p.autoCat;
+    p.sel = !!c?.selecionado;
+    RAW.prodMap[p.product_hubla_id]=p;
+  }
   DATA_MIN = RAW.produto_dia.length ? RAW.produto_dia[0].dia : "2025-06-18";
   document.getElementById("sub-upd").textContent = new Date(RAW.generated_at).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});
   const df=document.getElementById("d-from"), dt=document.getElementById("d-to");
@@ -281,7 +316,10 @@ function windows(){
   const gran = len<=62 ? "dia" : "mes";
   return {from,to,pfrom,pto,gran,len};
 }
-function inCat(p){ return !state.cat || p.cat===state.cat; }
+function inCat(p){
+  if(state.cat==="__sel") return p.sel;
+  return !state.cat || p.cat===state.cat;
+}
 const bucketOf=(dia,gran)=> gran==="dia" ? dia : dia.slice(0,7);
 function bucketList(from,to,gran){
   const out=[];
@@ -567,9 +605,72 @@ function openDrawer(id){
   document.getElementById("dr-close").onclick=closeDrawer;
 }
 function dstat(l,v){ return '<div class="dstat"><div class="l">'+l+'</div><div class="v">'+v+'</div></div>'; }
-function closeDrawer(){ document.getElementById("overlay").classList.remove("open"); document.getElementById("drawer").classList.remove("open"); }
+function closeDrawer(){ document.getElementById("overlay").classList.remove("open");
+  document.getElementById("drawer").classList.remove("open");
+  document.getElementById("cfg").classList.remove("open"); }
 document.getElementById("overlay").addEventListener("click",closeDrawer);
 addEventListener("keydown",e=>{ if(e.key==="Escape") closeDrawer(); });
+
+/* ---------- configurar produtos (categoria manual + seleção) ---------- */
+let cfgQ="";
+async function saveCfg(p){
+  try{
+    const r=await fetch(API+"?k="+encodeURIComponent(K),{method:"POST",
+      headers:{Authorization:"Bearer "+ANON, apikey:ANON, "Content-Type":"application/json"},
+      body:JSON.stringify({items:[{id:p.product_hubla_id, categoria:p.override, selecionado:p.sel}]})});
+    if(!r.ok) throw new Error(r.status);
+  }catch(e){
+    showTip('<div class="t-title" style="color:var(--s8)">Erro ao salvar — recarregue a página</div>', innerWidth/2, 60);
+    setTimeout(hideTip, 2500);
+  }
+}
+function renderCfgList(){
+  const list=RAW.produtos.slice().sort((a,b)=>(b.receita_bruta||0)-(a.receita_bruta||0));
+  const q=cfgQ.trim().toUpperCase();
+  const shown=list.filter(p=>!q||p.product_name.toUpperCase().includes(q));
+  const nSel=RAW.produtos.filter(p=>p.sel).length;
+  document.getElementById("cfg-count").textContent=nSel+" na seleção";
+  document.getElementById("cfg-list").innerHTML=shown.map(p=>{
+    const pills=[["auto","Auto"],["Elite","Elite"],["Low Ticket","Low"],["Outros","Outros"]].map(([v,l])=>{
+      const on = v==="auto" ? !p.override : p.override===v;
+      return '<button class="pill '+(v==="auto"?"auto ":"")+(on?"on":"")+'" data-id="'+p.product_hubla_id+'" data-cat="'+v+'">'+l+'</button>';
+    }).join("");
+    return '<div class="crow">'
+      +'<input type="checkbox" data-id="'+p.product_hubla_id+'" '+(p.sel?"checked":"")+' title="Incluir na seleção">'
+      +'<span class="nm"><span class="cat-dot" style="background:'+CAT[p.cat]+'"></span>'+p.product_name
+      +'<small>'+fmtC(p.receita_bruta||0)+' histórico · '+fmtN.format(p.matriculas||0)+' matrículas'
+      +(p.override?" · categoria manual":" · categoria automática")+'</small></span>'
+      +'<span class="pills">'+pills+'</span></div>';
+  }).join("") || '<div class="hint" style="padding:20px 0">Nenhum produto encontrado</div>';
+  const el=document.getElementById("cfg-list");
+  el.querySelectorAll("input[type=checkbox]").forEach(cb=>cb.addEventListener("change",()=>{
+    const p=RAW.prodMap[cb.dataset.id]; p.sel=cb.checked; saveCfg(p); renderCfgList(); render();
+  }));
+  el.querySelectorAll(".pill").forEach(b=>b.addEventListener("click",()=>{
+    const p=RAW.prodMap[b.dataset.id];
+    p.override = b.dataset.cat==="auto" ? null : b.dataset.cat;
+    p.cat = p.override || p.autoCat;
+    saveCfg(p); renderCfgList(); render();
+  }));
+}
+function bulkSel(val){
+  const q=cfgQ.trim().toUpperCase();
+  const alvo=RAW.produtos.filter(p=> val ? (!q||p.product_name.toUpperCase().includes(q)) : p.sel);
+  alvo.forEach(p=>p.sel=val);
+  fetch(API+"?k="+encodeURIComponent(K),{method:"POST",
+    headers:{Authorization:"Bearer "+ANON, apikey:ANON, "Content-Type":"application/json"},
+    body:JSON.stringify({items:alvo.map(p=>({id:p.product_hubla_id, categoria:p.override, selecionado:p.sel}))})});
+  renderCfgList(); render();
+}
+document.getElementById("btn-cfg").addEventListener("click",()=>{
+  renderCfgList();
+  document.getElementById("overlay").classList.add("open");
+  document.getElementById("cfg").classList.add("open");
+});
+document.getElementById("cfg-close").addEventListener("click",closeDrawer);
+document.getElementById("cfg-search").addEventListener("input",e=>{ cfgQ=e.target.value; renderCfgList(); });
+document.getElementById("cfg-sel-all").addEventListener("click",()=>bulkSel(true));
+document.getElementById("cfg-sel-none").addEventListener("click",()=>bulkSel(false));
 
 function drawerChart(p,dAgg){
   const el=document.getElementById("dr-chart");
