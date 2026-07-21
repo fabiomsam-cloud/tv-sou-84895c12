@@ -134,6 +134,25 @@ tbody tr:hover{background:rgba(255,255,255,.035)}
 .dstat .v{font-family:var(--disp);font-weight:700;font-size:16.5px;margin-top:4px}
 .drawer h4{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin:20px 0 10px;font-weight:600}
 
+/* central de reembolsos */
+.tile.bigr{background:linear-gradient(145deg,#241012 0%,var(--surface) 55%);border-color:rgba(230,103,103,.4)}
+.tile.bigr .val{font-size:44px;font-weight:800;color:var(--s8);line-height:1;margin-top:10px}
+.tile.bigr .lbl{color:#c98b8b}
+.alert-row{display:flex;align-items:center;gap:14px;padding:11px 14px;border-left:3px solid var(--critical);
+  background:rgba(208,59,59,.07);border-radius:0 10px 10px 0;margin-bottom:8px;flex-wrap:wrap}
+.alert-row.warn{border-left-color:var(--s4);background:rgba(201,133,0,.07)}
+.alert-row .an{flex:1;min-width:200px;font-weight:600;color:var(--ink);font-size:13px}
+.alert-row .av{font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--ink-2)}
+.alert-row .av b{color:var(--s8);font-size:15px}
+.alert-row.warn .av b{color:var(--s4)}
+.badge{display:inline-block;padding:2px 8px;border-radius:6px;font-size:10.5px;font-weight:700;letter-spacing:.03em}
+.badge.rb{background:rgba(230,103,103,.15);color:var(--s8)}
+.badge.cb{background:rgba(208,59,59,.25);color:#ff9d9d}
+.badge.dp{background:rgba(201,133,0,.18);color:#e8b45c}
+.btn-csv{border:1px solid var(--ring);background:var(--surface-2);color:var(--ink-2);font-family:var(--body);
+  font-size:12px;font-weight:600;padding:7px 13px;border-radius:8px;cursor:pointer}
+.btn-csv:hover{color:var(--ink);border-color:rgba(217,165,63,.5)}
+
 /* config de produtos */
 .crow{display:flex;align-items:center;gap:10px;padding:9px 2px;border-bottom:1px solid rgba(255,255,255,.05)}
 .crow .nm{flex:1;min-width:0;font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -196,6 +215,11 @@ footer{margin-top:26px;color:var(--muted);font-size:11.5px;display:flex;justify-
       </div>
     </div>
   </header>
+
+  <div class="chips" id="view-chips" style="margin-top:14px;display:inline-flex">
+    <button class="chip on" data-v="geral">📊 Visão geral</button>
+    <button class="chip" data-v="reembolsos">↩ Reembolsos</button>
+  </div>
 
   <div id="app"><div class="loading">Carregando dados do SOU Data Core…</div></div>
 
@@ -260,7 +284,7 @@ function nDays(a,b){ return Math.round((Date.parse(b)-Date.parse(a))/864e5)+1; }
 
 /* ================= estado ================= */
 let RAW=null, DATA_MIN=null;
-let state={range:{mode:"12m"}, cat:"", q:"", sort:{col:"liquida",dir:-1}, grupoId:null};
+let state={range:{mode:"12m"}, cat:"", q:"", sort:{col:"liquida",dir:-1}, grupoId:null, view:"geral"};
 
 /* ================= boot ================= */
 (async function(){
@@ -382,6 +406,7 @@ function render(){
   document.getElementById("sub-range").textContent = dataBR(W.from)+" → "+dataBR(W.to);
   AGG = computeAgg(W.from,W.to,W.gran);
   const P = W.pfrom ? computeAgg(W.pfrom,W.pto,null) : null;
+  if(state.view==="reembolsos"){ renderReembolsos(P); return; }
   const app = document.getElementById("app");
   app.innerHTML = heroHtml(AGG,P)
     + '<div class="grid g-main"><div class="card"><div class="card-head"><div><h2>Receita líquida por categoria</h2>'
@@ -780,7 +805,169 @@ function drawerChart(p,dAgg){
   });
 }
 
+/* ---------- CENTRAL DE REEMBOLSOS ---------- */
+function reembRows(){
+  // reembolsos+chargebacks do período (por data do reembolso) + TODAS as disputas abertas
+  const out=[];
+  for(const r of RAW.reembolso_detalhe||[]){
+    const p=RAW.prodMap[r.product_hubla_id];
+    if(p && !inCat(p)) continue;
+    if(!p && state.cat) continue;
+    if(r.status==="Em disputa"){ out.push(r); continue; }
+    if(r.data_reembolso>=W.from && r.data_reembolso<=W.to) out.push(r);
+  }
+  return out;
+}
+function renderReembolsos(P){
+  const rows=reembRows();
+  const reemb=rows.filter(r=>r.status==="Reembolsada");
+  const cbs=rows.filter(r=>r.status==="Chargeback");
+  const disputas=rows.filter(r=>r.status==="Em disputa");
+  const valor=reemb.concat(cbs).reduce((s,r)=>s+(r.total_value||0),0);
+  const dias=reemb.map(r=>r.dias_ate_reembolso).filter(d=>d!=null);
+  const tMedio=dias.length? dias.reduce((s,d)=>s+d,0)/dias.length : 0;
+  const ate7=dias.length? dias.filter(d=>d<=7).length/dias.length*100 : 0;
+  const txR=(AGG.reemb+AGG.cb)/(AGG.mat+AGG.reemb+AGG.cb||1)*100;
+  const txRP=P? (P.reemb+P.cb)/(P.mat+P.reemb+P.cb||1)*100 : null;
+
+  /* stats por produto no período */
+  const porProd={};
+  for(const r of reemb.concat(cbs)){
+    const s=porProd[r.product_hubla_id]||(porProd[r.product_hubla_id]={nome:r.product_name,reemb:0,cb:0,valor:0,dias:[],disputas:0});
+    if(r.status==="Chargeback") s.cb++; else s.reemb++;
+    s.valor+=r.total_value||0;
+    if(r.dias_ate_reembolso!=null) s.dias.push(r.dias_ate_reembolso);
+  }
+  for(const r of disputas){
+    const s=porProd[r.product_hubla_id]||(porProd[r.product_hubla_id]={nome:r.product_name,reemb:0,cb:0,valor:0,dias:[],disputas:0});
+    s.disputas++;
+  }
+  const prodStats=Object.entries(porProd).map(([id,s])=>{
+    const mat=AGG.prod[id]?.mat||0;
+    const n=s.reemb+s.cb;
+    return {id, ...s, mat, taxa: (mat+n)? n/(mat+n)*100 : (n?100:0),
+      tMedio: s.dias.length? s.dias.reduce((a,b)=>a+b,0)/s.dias.length : null};
+  }).sort((a,b)=>b.taxa-a.taxa);
+  const alertas=prodStats.filter(s=>(s.reemb+s.cb)>=3 && s.taxa>=5);
+
+  const app=document.getElementById("app");
+  app.innerHTML=
+    '<div class="hero">'
+    +'<div class="tile bigr"><div class="lbl">Valor devolvido no período</div><div class="val">'+fmtBRL.format(valor)+'</div>'
+    +'<div class="delta">'+fmtN.format(reemb.length)+' reembolsos · '+fmtN.format(cbs.length)+' chargebacks</div></div>'
+    +tile("Taxa de reembolso", txR.toLocaleString("pt-BR",{maximumFractionDigits:1})+"%", deltaHtml(txR,txRP,true))
+    +tile("Reembolsos", fmtN.format(reemb.length), '<div class="delta">faturas devolvidas no período</div>')
+    +tile("Tempo médio até reembolso", Math.round(tMedio)+" dias", '<div class="delta">da matrícula à devolução</div>')
+    +tile("Dentro de 7 dias (garantia)", ate7.toLocaleString("pt-BR",{maximumFractionDigits:0})+"%", '<div class="delta">dos reembolsos do período</div>')
+    +tile("Disputas abertas", fmtN.format(disputas.length), '<div class="delta" style="color:var(--s4)">ainda dá para reverter — agir já</div>')
+    +'</div>'
+    +'<div class="card" style="margin-bottom:12px"><div class="card-head"><div><h2>⚠ Alertas — produtos com taxa alta no período</h2>'
+    +'<div class="hint">Critério: 3+ devoluções e taxa ≥5% (vermelho ≥8%) · taxa = devoluções ÷ (matrículas + devoluções)</div></div></div><div id="rb-alertas"></div></div>'
+    +'<div class="grid g-two"><div class="card"><div class="card-head"><div><h2>Prazo até o reembolso</h2><div class="hint">Dias entre a matrícula e a devolução</div></div></div><div id="rb-prazo"></div></div>'
+    +'<div class="card"><div class="card-head"><div><h2>Por método de pagamento</h2><div class="hint">Valor devolvido no período</div></div></div><div id="rb-metodo"></div></div></div>'
+    +'<div class="card" style="margin-bottom:12px"><div class="card-head"><div><h2>Devoluções ao longo do tempo</h2><div class="hint">Valor · '+(W.gran==="dia"?"por dia":"por mês")+'</div></div></div><div id="ch-reemb"></div></div>'
+    +'<div class="card tbl-card" style="margin-bottom:12px"><div class="card-head"><div><h2>Por produto</h2><div class="hint">Período selecionado, ordenado pela taxa</div></div></div><div class="tbl-wrap" id="rb-prod"></div></div>'
+    +'<div class="card tbl-card"><div class="card-head"><div><h2>Leads reembolsados — para recuperação</h2><div class="hint" id="rb-hint"></div></div>'
+    +'<button class="btn-csv" id="rb-csv">⬇ Exportar CSV</button></div><div class="tbl-wrap" id="rb-leads"></div>'
+    +'<div class="foot-note">Disputas abertas aparecem sempre (independente do período) — são reversíveis. Use a busca no topo p/ filtrar por nome, e-mail ou produto.</div></div>';
+
+  /* alertas */
+  document.getElementById("rb-alertas").innerHTML = alertas.length? alertas.map(s=>
+    '<div class="alert-row'+(s.taxa>=8?"":" warn")+'"><span class="an">'+s.nome+'</span>'
+    +'<span class="av"><b>'+s.taxa.toLocaleString("pt-BR",{maximumFractionDigits:1})+'%</b> de taxa</span>'
+    +'<span class="av">'+fmtN.format(s.reemb+s.cb)+' devoluções / '+fmtN.format(s.mat)+' matrículas</span>'
+    +'<span class="av">'+fmtC(s.valor)+' devolvidos</span>'
+    +(s.disputas?'<span class="badge dp">'+s.disputas+' em disputa</span>':'')
+    +'</div>').join("")
+    : '<div class="hint" style="padding:10px 0">Nenhum produto acima do limiar no período — situação sob controle. 👍</div>';
+
+  /* prazo buckets */
+  const bks=[["≤ 7 dias (garantia)",0,7],["8–14 dias",8,14],["15–30 dias",15,30],["> 30 dias",31,99999]];
+  const bmax=Math.max(...bks.map(([l,a,b])=>dias.filter(d=>d>=a&&d<=b).length),1);
+  document.getElementById("rb-prazo").innerHTML=bks.map(([l,a,b])=>{
+    const n=dias.filter(d=>d>=a&&d<=b).length, pc=dias.length? n/dias.length*100:0;
+    return '<div class="mrow"><div class="name">'+l+'</div>'
+      +'<div class="track"><div class="fill" style="width:'+(n/bmax*100)+'%;background:'+getCss("--s8")+'"></div></div>'
+      +'<div class="num"><b>'+fmtN.format(n)+'</b>'+pc.toLocaleString("pt-BR",{maximumFractionDigits:0})+'% dos reembolsos</div></div>';
+  }).join("");
+
+  /* método */
+  const met={};
+  for(const r of reemb.concat(cbs)){ const m=r.payment_method||"Outro";
+    met[m]=met[m]||{v:0,n:0}; met[m].v+=r.total_value||0; met[m].n++; }
+  const mrows=Object.entries(met).sort((a,b)=>b[1].v-a[1].v);
+  const mtot=mrows.reduce((s,r)=>s+r[1].v,0)||1;
+  document.getElementById("rb-metodo").innerHTML=mrows.map(([m,d])=>
+    '<div class="mrow"><div class="name">'+m+'</div>'
+    +'<div class="track"><div class="fill" style="width:'+(d.v/mtot*100)+'%;background:'+getCss("--s8")+'"></div></div>'
+    +'<div class="num"><b>'+fmtC(d.v)+'</b>'+fmtN.format(d.n)+' devoluções</div></div>').join("")
+    || '<div class="hint" style="padding:20px 0;text-align:center">Sem devoluções no período</div>';
+
+  chartReemb();
+
+  /* tabela por produto */
+  document.getElementById("rb-prod").innerHTML='<table><thead><tr><th style="text-align:left;padding-left:22px">Produto</th>'
+    +'<th>Matrículas</th><th>Reembolsos</th><th>Chargebacks</th><th>Disputas</th><th>Taxa</th><th>Valor devolvido</th><th>Tempo médio</th></tr></thead><tbody>'
+    +prodStats.map(s=>'<tr><td title="'+s.nome+'">'+s.nome+'</td><td>'+fmtN.format(s.mat)+'</td>'
+      +'<td>'+fmtN.format(s.reemb)+'</td><td>'+(s.cb||"—")+'</td><td>'+(s.disputas?'<span class="badge dp">'+s.disputas+'</span>':"—")+'</td>'
+      +'<td class="'+(s.taxa>=8?"reemb-hi":"")+'"><b>'+s.taxa.toLocaleString("pt-BR",{maximumFractionDigits:1})+'%</b></td>'
+      +'<td>'+fmtBRL.format(s.valor)+'</td><td>'+(s.tMedio!=null?Math.round(s.tMedio)+" dias":"—")+'</td></tr>').join("")
+    +'</tbody></table>';
+
+  renderReembLeads();
+  document.getElementById("rb-csv").addEventListener("click",exportReembCsv);
+}
+
+function reembLeadsFiltered(){
+  const q=state.q.trim().toUpperCase();
+  const rows=reembRows().filter(r=>!q
+    || (r.customer_name||"").toUpperCase().includes(q)
+    || (r.customer_email||"").toUpperCase().includes(q)
+    || (r.product_name||"").toUpperCase().includes(q));
+  // disputas primeiro (reversíveis), depois mais recentes
+  return rows.sort((a,b)=> (a.status==="Em disputa"?0:1)-(b.status==="Em disputa"?0:1)
+    || (b.data_reembolso||"").localeCompare(a.data_reembolso||""));
+}
+function badge(st){ return st==="Em disputa"? '<span class="badge dp">EM DISPUTA</span>'
+  : st==="Chargeback"? '<span class="badge cb">CHARGEBACK</span>' : '<span class="badge rb">Reembolsada</span>'; }
+function renderReembLeads(){
+  const rows=reembLeadsFiltered();
+  const CAP=500;
+  document.getElementById("rb-hint").textContent=fmtN.format(rows.length)+" leads no período"+(rows.length>CAP?" (mostrando "+CAP+" — use a busca ou exporte o CSV)":"");
+  document.getElementById("rb-leads").innerHTML='<table><thead><tr>'
+    +'<th style="text-align:left;padding-left:22px">Lead</th><th style="text-align:left">Contato</th>'
+    +'<th style="text-align:left">Curso</th><th>Matrícula</th><th>Reembolso</th><th>Dias</th><th>Valor</th><th>Método</th><th>Status</th></tr></thead><tbody>'
+    +rows.slice(0,CAP).map(r=>'<tr>'
+      +'<td title="'+(r.customer_name||"")+'">'+(r.customer_name||"—")+'</td>'
+      +'<td style="text-align:left;color:var(--ink-2)">'+(r.customer_email||"—")+'<br><span style="color:var(--muted)">'+(r.customer_phone||"")+'</span></td>'
+      +'<td style="text-align:left;max-width:220px;overflow:hidden;text-overflow:ellipsis" title="'+(r.product_name||"")+'">'+(r.product_name||"—")+'</td>'
+      +'<td>'+(r.data_matricula?dataBR(r.data_matricula):"—")+'</td>'
+      +'<td>'+(r.data_reembolso?dataBR(r.data_reembolso):"—")+'</td>'
+      +'<td>'+(r.dias_ate_reembolso!=null?r.dias_ate_reembolso:"—")+'</td>'
+      +'<td>'+fmtBRL.format(r.total_value||0)+'</td>'
+      +'<td>'+(r.payment_method||"—")+'</td>'
+      +'<td>'+badge(r.status)+'</td></tr>').join("")
+    +'</tbody></table>';
+}
+function exportReembCsv(){
+  const rows=reembLeadsFiltered();
+  const head=["nome","email","telefone","curso","status","data_matricula","data_reembolso","dias_ate_reembolso","valor","metodo_pagamento"];
+  const esc=v=> '"'+String(v??"").replace(/"/g,'""')+'"';
+  const csv="﻿"+head.join(";")+"\n"+rows.map(r=>[r.customer_name,r.customer_email,r.customer_phone,
+    r.product_name,r.status,r.data_matricula,r.data_reembolso,r.dias_ate_reembolso,
+    String(r.total_value??"").replace(".",","),r.payment_method].map(esc).join(";")).join("\n");
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
+  a.download="reembolsos_"+W.from+"_a_"+W.to+".csv"; a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 /* ---------- filtros ---------- */
+document.getElementById("view-chips").addEventListener("click",e=>{
+  const b=e.target.closest(".chip"); if(!b) return;
+  document.querySelectorAll("#view-chips .chip").forEach(c=>c.classList.remove("on"));
+  b.classList.add("on"); state.view=b.dataset.v; render();
+});
 const pop=document.getElementById("pop");
 document.getElementById("period-chips").addEventListener("click",e=>{
   const b=e.target.closest(".chip"); if(!b) return;
@@ -812,7 +999,8 @@ document.getElementById("cat-chips").addEventListener("click",e=>{
   state.grupoId=null; renderGrupoChips();
   render();
 });
-document.getElementById("search").addEventListener("input",e=>{ state.q=e.target.value; renderTable(); });
+document.getElementById("search").addEventListener("input",e=>{ state.q=e.target.value;
+  if(state.view==="reembolsos") renderReembLeads(); else renderTable(); });
 </script>
 </body>
 </html>
