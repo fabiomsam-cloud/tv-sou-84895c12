@@ -21,10 +21,10 @@
 *{margin:0;padding:0;box-sizing:border-box}
 html{scrollbar-color:#3a3a38 var(--page)}
 body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.45;min-height:100vh;position:relative}
-body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+body::before{content:"";position:absolute;left:0;right:0;top:0;height:900px;pointer-events:none;z-index:0;
   background:radial-gradient(1100px 480px at 78% -8%, rgba(217,165,63,.09), transparent 60%),
              radial-gradient(900px 420px at -10% 4%, rgba(57,135,229,.06), transparent 55%)}
-body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.05;
+body::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:0;opacity:.05;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.6'/%3E%3C/svg%3E")}
 .wrap{position:relative;z-index:1;max-width:1360px;margin:0 auto;padding:28px 32px 80px}
 
@@ -231,7 +231,8 @@ function prep(){
 function windows(){
   const n = state.months===0 ? MESES.length : Math.min(state.months, MESES.length);
   const cur = MESES.slice(-n);
-  const prev = state.months===0 ? [] : MESES.slice(-(2*n), -n);
+  let prev = state.months===0 ? [] : MESES.slice(-(2*n), -n);
+  if(prev.length < n) prev = []; // só compara com janela anterior COMPLETA (senão o % engana)
   return {cur, prev};
 }
 function inCat(p){ return !state.cat || p.cat===state.cat; }
@@ -266,7 +267,7 @@ function render(){
 }
 
 function deltaHtml(cur, prev, fmt, invert){
-  if(prev===null||prev===undefined) return '<div class="delta">período completo</div>';
+  if(prev===null||prev===undefined) return '<div class="delta">sem período anterior completo p/ comparar</div>';
   if(!prev) return '<div class="delta">—</div>';
   const d = (cur-prev)/prev*100;
   const up = d>=0;
