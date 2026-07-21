@@ -200,7 +200,7 @@ footer{margin-top:26px;color:var(--muted);font-size:11.5px;display:flex;justify-
   <div id="app"><div class="loading">Carregando dados do SOU Data Core…</div></div>
 
   <footer>
-    <span>SOU Data Core · Supabase · dados ao vivo · matrícula = compra avulsa ou parcelamento inteligente agrupado; receita em regime de caixa</span>
+    <span>SOU Data Core · Supabase · dados ao vivo · matrícula = compra avulsa ou parcelamento inteligente agrupado · receita LÍQUIDA em destaque (o que entra na conta), em regime de caixa</span>
     <span>Feito para o Grupo SOU</span>
   </footer>
 </div>
@@ -260,7 +260,7 @@ function nDays(a,b){ return Math.round((Date.parse(b)-Date.parse(a))/864e5)+1; }
 
 /* ================= estado ================= */
 let RAW=null, DATA_MIN=null;
-let state={range:{mode:"12m"}, cat:"", q:"", sort:{col:"receita",dir:-1}, grupoId:null};
+let state={range:{mode:"12m"}, cat:"", q:"", sort:{col:"liquida",dir:-1}, grupoId:null};
 
 /* ================= boot ================= */
 (async function(){
@@ -354,11 +354,11 @@ function computeAgg(from,to,gran){
     if(gran){
       const b=bucketOf(r.dia,gran);
       const bk=A.buckets[b]||(A.buckets[b]={total:0,cats:{}});
-      bk.total+=r.receita_bruta; bk.cats[p.cat]=(bk.cats[p.cat]||0)+r.receita_bruta;
+      bk.total+=r.receita_liquida; bk.cats[p.cat]=(bk.cats[p.cat]||0)+r.receita_liquida;
       const pr=A.prod[p.product_hubla_id]||(A.prod[p.product_hubla_id]={mat:0,faturas:0,receita:0,liquida:0,valMat:0,novos:0,reemb:0,cb:0,serie:{}});
       pr.mat+=r.matriculas; pr.faturas+=r.faturas; pr.receita+=r.receita_bruta;
       pr.liquida+=r.receita_liquida; pr.valMat+=r.valor_matriculas; pr.novos+=r.alunos_novos;
-      pr.serie[b]=(pr.serie[b]||0)+r.receita_bruta;
+      pr.serie[b]=(pr.serie[b]||0)+r.receita_liquida;
     }
   }
   for(const r of RAW.reembolso_dia){
@@ -384,10 +384,10 @@ function render(){
   const P = W.pfrom ? computeAgg(W.pfrom,W.pto,null) : null;
   const app = document.getElementById("app");
   app.innerHTML = heroHtml(AGG,P)
-    + '<div class="grid g-main"><div class="card"><div class="card-head"><div><h2>Receita por categoria</h2>'
-    + '<div class="hint">Faturas pagas · caixa · '+(W.gran==="dia"?"por dia":"por mês")+'</div></div><div class="legend" id="lg-mensal"></div></div><div id="ch-mensal"></div></div>'
-    + '<div class="card"><div class="card-head"><div><h2>Métodos de pagamento</h2><div class="hint">Participação na receita do período</div></div></div><div id="ch-metodos"></div></div></div>'
-    + '<div class="grid g-two"><div class="card"><div class="card-head"><div><h2>Top 10 produtos</h2><div class="hint">Receita bruta no período</div></div></div><div id="ch-top"></div></div>'
+    + '<div class="grid g-main"><div class="card"><div class="card-head"><div><h2>Receita líquida por categoria</h2>'
+    + '<div class="hint">O que entra na conta · '+(W.gran==="dia"?"por dia":"por mês")+'</div></div><div class="legend" id="lg-mensal"></div></div><div id="ch-mensal"></div></div>'
+    + '<div class="card"><div class="card-head"><div><h2>Métodos de pagamento</h2><div class="hint">Participação na receita líquida do período</div></div></div><div id="ch-metodos"></div></div></div>'
+    + '<div class="grid g-two"><div class="card"><div class="card-head"><div><h2>Top 10 produtos</h2><div class="hint">Receita líquida no período</div></div></div><div id="ch-top"></div></div>'
     + '<div class="card"><div class="card-head"><div><h2>Reembolsos + chargebacks</h2><div class="hint">Valor devolvido · '+(W.gran==="dia"?"por dia":"por mês")+'</div></div></div><div id="ch-reemb"></div></div></div>'
     + '<div class="card tbl-card"><div class="card-head"><div><h2>Ranking completo de produtos</h2><div class="hint" id="tbl-hint"></div></div></div><div class="tbl-wrap" id="tbl"></div>'
     + '<div class="foot-note">Clique num produto para abrir o raio-x. Matrícula = compra avulsa ou parcelamento inteligente agrupado (parcela não conta). Matrículas ativas = histórico completo, não filtra por período.</div></div>';
@@ -411,8 +411,8 @@ function heroHtml(A,P){
   const txR = (A.reemb+A.cb)/(A.mat+A.reemb+A.cb||1)*100;
   const txRP = P? (P.reemb+P.cb)/(P.mat+P.reemb+P.cb||1)*100 : null;
   return '<div class="hero">'
-   +'<div class="tile big"><div class="lbl">Receita bruta (caixa)</div><div class="val">'+fmtBRL.format(A.receita)+'</div>'+deltaHtml(A.receita,P?.receita)+'</div>'
-   +tile("Receita líquida", fmtBRL.format(A.liquida), deltaHtml(A.liquida,P?.liquida))
+   +'<div class="tile big"><div class="lbl">Receita líquida (na sua conta)</div><div class="val">'+fmtBRL.format(A.liquida)+'</div>'+deltaHtml(A.liquida,P?.liquida)+'</div>'
+   +tile("Receita bruta (faturado)", fmtBRL.format(A.receita), deltaHtml(A.receita,P?.receita))
    +tile("Matrículas novas", fmtN.format(A.mat), deltaHtml(A.mat,P?.mat))
    +tile("Alunos novos", fmtN.format(A.novos), deltaHtml(A.novos,P?.novos))
    +tile("Ticket p/ matrícula", fmtBRL2.format(tk), deltaHtml(tk,tkP))
@@ -479,7 +479,7 @@ function chartMetodos(){
   if(state.cat){ el.innerHTML='<div class="hint" style="padding:30px 0;text-align:center">Disponível apenas com todas as categorias<br>(método não é segmentado por produto)</div>'; return; }
   const agg={};
   for(const r of RAW.pagamento_dia){ if(r.dia<W.from||r.dia>W.to) continue;
-    agg[r.metodo]=agg[r.metodo]||{v:0,n:0}; agg[r.metodo].v+=r.receita; agg[r.metodo].n+=r.faturas; }
+    agg[r.metodo]=agg[r.metodo]||{v:0,n:0}; agg[r.metodo].v+=(r.receita_liquida ?? r.receita); agg[r.metodo].n+=r.faturas; }
   const rows=Object.entries(agg).sort((a,b)=>b[1].v-a[1].v);
   if(!rows.length){ el.innerHTML='<div class="hint" style="padding:30px 0;text-align:center">Sem faturas no período</div>'; return; }
   const tot=rows.reduce((s,r)=>s+r[1].v,0)||1;
@@ -495,7 +495,7 @@ function chartMetodos(){
 /* ---------- top 10 ---------- */
 function chartTop(){
   const el=document.getElementById("ch-top");
-  const list=Object.entries(AGG.prod).map(([id,d])=>({p:RAW.prodMap[id],v:d.receita}))
+  const list=Object.entries(AGG.prod).map(([id,d])=>({p:RAW.prodMap[id],v:d.liquida}))
     .filter(d=>d.v>0).sort((a,b)=>b.v-a.v).slice(0,10);
   const max=list[0]?.v||1;
   el.innerHTML=list.map(d=>{
@@ -549,8 +549,8 @@ const COLS=[
   {k:"nome",l:"Produto"},
   {k:"mat",l:"Matrículas"},
   {k:"faturas",l:"Faturas"},
-  {k:"receita",l:"Receita (caixa)"},
-  {k:"liquida",l:"Líquida"},
+  {k:"liquida",l:"Receita líquida"},
+  {k:"receita",l:"Bruta"},
   {k:"novos",l:"Alunos novos"},
   {k:"ticket",l:"Ticket matríc."},
   {k:"reembPc",l:"Reemb. %"},
@@ -570,17 +570,17 @@ function renderTable(){
   const shown=rowsData.filter(d=>!q||d.nome.toUpperCase().includes(q));
   const {col,dir}=state.sort;
   shown.sort((a,b)=> col==="nome" ? dir*a.nome.localeCompare(b.nome) : dir*((a[col]||0)-(b[col]||0)) );
-  const totR=rowsData.reduce((s,d)=>s+d.receita,0)||1;
-  document.getElementById("tbl-hint").textContent = shown.length+" produtos com movimento no período · "+fmtBRL.format(totR)+" em caixa";
+  const totR=rowsData.reduce((s,d)=>s+d.liquida,0)||1;
+  document.getElementById("tbl-hint").textContent = shown.length+" produtos com movimento no período · "+fmtBRL.format(totR)+" líquidos";
   let h='<table><thead><tr>'+COLS.map(c=>'<th data-k="'+c.k+'" class="'+(col===c.k?"sorted":"")+'">'+c.l+(col===c.k?(dir<0?" ↓":" ↑"):"")+'</th>').join("")+'</tr></thead><tbody>';
   for(const d of shown){
-    const pc=d.receita/totR*100;
+    const pc=d.liquida/totR*100;
     h+='<tr data-id="'+d.p.product_hubla_id+'">'
      +'<td title="'+d.nome+'"><span class="cat-dot" style="background:'+CAT[d.p.cat]+'"></span>'+d.nome+'</td>'
      +'<td><b style="color:var(--ink)">'+fmtN.format(d.mat)+'</b></td>'
      +'<td>'+fmtN.format(d.faturas)+'</td>'
-     +'<td><b style="color:var(--ink)">'+fmtBRL.format(d.receita)+'</b><span class="pct-track"><span class="pct-fill" style="width:'+Math.min(pc*4,100)+'%"></span></span></td>'
-     +'<td>'+fmtBRL.format(d.liquida)+'</td>'
+     +'<td><b style="color:var(--ink)">'+fmtBRL.format(d.liquida)+'</b><span class="pct-track"><span class="pct-fill" style="width:'+Math.min(pc*4,100)+'%"></span></span></td>'
+     +'<td>'+fmtBRL.format(d.receita)+'</td>'
      +'<td>'+fmtN.format(d.novos)+'</td>'
      +'<td>'+fmtBRL2.format(d.ticket)+'</td>'
      +'<td class="'+(d.reembPc>=8?"reemb-hi":"")+'">'+d.reembPc.toLocaleString("pt-BR",{maximumFractionDigits:1})+'%</td>'
@@ -600,7 +600,7 @@ function renderTable(){
 /* ---------- drawer raio-x ---------- */
 function openDrawer(id){
   const p=RAW.prodMap[id]; if(!p) return;
-  const d=AGG.prod[id]||{mat:0,receita:0,novos:0,serie:{}};
+  const d=AGG.prod[id]||{mat:0,receita:0,liquida:0,novos:0,serie:{}};
   const dr=document.getElementById("drawer");
   dr.innerHTML='<button class="close" id="dr-close">✕</button>'
    +'<h3>'+p.product_name+'</h3>'
@@ -608,10 +608,10 @@ function openDrawer(id){
    +' · 1ª venda '+(p.primeira_venda? new Date(p.primeira_venda).toLocaleDateString("pt-BR"):"—")
    +' · última '+(p.ultima_venda? new Date(p.ultima_venda).toLocaleDateString("pt-BR"):"—")+'</div>'
    +'<div class="dgrid">'
-   +dstat("Receita (período)",fmtC(d.receita))+dstat("Matrículas (período)",fmtN.format(d.mat))+dstat("Alunos novos",fmtN.format(d.novos))
-   +dstat("Matrículas históricas",fmtN.format(p.matriculas||0))+dstat("Alunos únicos",fmtN.format(p.alunos_unicos))+dstat("Ticket p/ matrícula",fmtBRL2.format(p.ticket_matricula||0))
+   +dstat("Líquida (período)",fmtC(d.liquida))+dstat("Matrículas (período)",fmtN.format(d.mat))+dstat("Alunos novos",fmtN.format(d.novos))
+   +dstat("Líquida histórica",fmtC(p.receita_liquida))+dstat("Alunos únicos",fmtN.format(p.alunos_unicos))+dstat("Ticket p/ matrícula",fmtBRL2.format(p.ticket_matricula||0))
    +dstat("Matrículas ativas",fmtN.format(p.ativas||0))+dstat("Matríc. reembolsadas",fmtN.format(p.matriculas_reemb||0))+dstat("Taxa reembolso",(p.taxa_reembolso_pct??0).toLocaleString("pt-BR")+"%")
-   +'</div><h4>Receita — caixa (período selecionado)</h4><div id="dr-chart"></div>';
+   +'</div><h4>Receita líquida (período selecionado)</h4><div id="dr-chart"></div>';
   drawerChart(p,d);
   document.getElementById("overlay").classList.add("open"); dr.classList.add("open");
   document.getElementById("dr-close").onclick=closeDrawer;
@@ -637,7 +637,7 @@ async function saveCfg(p){
   }
 }
 function renderCfgList(){
-  const list=RAW.produtos.slice().sort((a,b)=>(b.receita_bruta||0)-(a.receita_bruta||0));
+  const list=RAW.produtos.slice().sort((a,b)=>(b.receita_liquida||0)-(a.receita_liquida||0));
   const q=cfgQ.trim().toUpperCase();
   const shown=list.filter(p=>!q||p.product_name.toUpperCase().includes(q));
   const nSel=RAW.produtos.filter(p=>p.sel).length;
@@ -650,7 +650,7 @@ function renderCfgList(){
     return '<div class="crow">'
       +'<input type="checkbox" data-id="'+p.product_hubla_id+'" '+(p.sel?"checked":"")+' title="Incluir na seleção">'
       +'<span class="nm"><span class="cat-dot" style="background:'+CAT[p.cat]+'"></span>'+p.product_name
-      +'<small>'+fmtC(p.receita_bruta||0)+' histórico · '+fmtN.format(p.matriculas||0)+' matrículas'
+      +'<small>'+fmtC(p.receita_liquida||0)+' líquidos · '+fmtN.format(p.matriculas||0)+' matrículas'
       +(p.override?" · categoria manual":" · categoria automática")+'</small></span>'
       +'<span class="pills">'+pills+'</span></div>';
   }).join("") || '<div class="hint" style="padding:20px 0">Nenhum produto encontrado</div>';
@@ -775,7 +775,7 @@ function drawerChart(p,dAgg){
   el.innerHTML=s;
   el.querySelectorAll(".bar-hit").forEach(r=>{
     r.addEventListener("mousemove",e=>{ const d=data[+r.dataset.i];
-      showTip('<div class="t-title">'+bTitle(d.b)+'</div><div class="t-row"><span>Receita</span><b>'+fmtBRL.format(d.v)+'</b></div>',e.clientX,e.clientY); });
+      showTip('<div class="t-title">'+bTitle(d.b)+'</div><div class="t-row"><span>Líquida</span><b>'+fmtBRL.format(d.v)+'</b></div>',e.clientX,e.clientY); });
     r.addEventListener("mouseleave",hideTip);
   });
 }
