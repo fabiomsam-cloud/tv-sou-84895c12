@@ -1184,7 +1184,7 @@ function renderCampanhas(){
     '<table><thead><tr><th style="text-align:left;padding-left:22px">Disparo</th><th style="text-align:left">Lead</th>'
     +'<th style="text-align:left">Curso</th><th>Valor</th><th>Status</th></tr></thead><tbody>'
     +disp.map(x=>'<tr><td style="text-align:left;padding-left:22px">'+(x.sent_at? new Date(x.sent_at).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"—")+'</td>'
-      +'<td style="text-align:left">'+(x.lead_nome||"—")+'<br><span style="color:var(--muted);font-size:11px">'+(x.phone_norm||"")+'</span></td>'
+      +'<td style="text-align:left">'+(x.lead_nome||"—")+'<br><span style="color:var(--muted);font-size:11px">'+(x.lead_phone||x.phone_norm||"")+'</span></td>'
       +'<td style="text-align:left;max-width:220px;overflow:hidden;text-overflow:ellipsis">'+(x.produto_nome||"—")+'</td>'
       +'<td>'+fmtBRL.format(x.valor||0)+'</td>'
       +'<td>'+(x.status==="convertido"?'<span class="badge rb" style="background:rgba(12,163,12,.15);color:var(--good)">CONVERTIDO 🎉</span>'
