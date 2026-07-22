@@ -467,7 +467,7 @@ function heroHtml(A,P){
    +tile("Receita bruta (faturado)", fmtBRL.format(A.receita), deltaHtml(A.receita,P?.receita))
    +tile("Matrículas novas", fmtN.format(A.mat), deltaHtml(A.mat,P?.mat))
    +tile("Alunos novos", fmtN.format(A.novos), deltaHtml(A.novos,P?.novos))
-   +tile("Ticket p/ matrícula", fmtBRL2.format(tk), deltaHtml(tk,tkP))
+   +tile("Ticket líquido/matrícula", fmtBRL2.format(tk), deltaHtml(tk,tkP))
    +tile("Taxa de reembolso", txR.toLocaleString("pt-BR",{maximumFractionDigits:1})+"%", deltaHtml(txR,txRP,true))
    +'</div>';
 }
@@ -604,7 +604,7 @@ const COLS=[
   {k:"liquida",l:"Receita líquida"},
   {k:"receita",l:"Bruta"},
   {k:"novos",l:"Alunos novos"},
-  {k:"ticket",l:"Ticket matríc."},
+  {k:"ticket",l:"Ticket líq."},
   {k:"reembPc",l:"Reemb. %"},
   {k:"ativas",l:"Mat. ativas"},
   {k:"trend",l:"Tendência"},
@@ -661,7 +661,7 @@ function openDrawer(id){
    +' · última '+(p.ultima_venda? new Date(p.ultima_venda).toLocaleDateString("pt-BR"):"—")+'</div>'
    +'<div class="dgrid">'
    +dstat("Líquida (período)",fmtC(d.liquida))+dstat("Matrículas (período)",fmtN.format(d.mat))+dstat("Alunos novos",fmtN.format(d.novos))
-   +dstat("Líquida histórica",fmtC(p.receita_liquida))+dstat("Alunos únicos",fmtN.format(p.alunos_unicos))+dstat("Ticket p/ matrícula",fmtBRL2.format(p.ticket_matricula||0))
+   +dstat("Líquida histórica",fmtC(p.receita_liquida))+dstat("Alunos únicos",fmtN.format(p.alunos_unicos))+dstat("Ticket líquido/matríc.",fmtBRL2.format(p.ticket_matricula||0))
    +dstat("Matrículas ativas",fmtN.format(p.ativas||0))+dstat("Matríc. reembolsadas",fmtN.format(p.matriculas_reemb||0))+dstat("Taxa reembolso",(p.taxa_reembolso_pct??0).toLocaleString("pt-BR")+"%")
    +'</div><h4>Receita líquida (período selecionado)</h4><div id="dr-chart"></div>';
   drawerChart(p,d);
