@@ -220,6 +220,7 @@ footer{margin-top:26px;color:var(--muted);font-size:11.5px;display:flex;justify-
     <button class="chip on" data-v="geral">📊 Visão geral</button>
     <button class="chip" data-v="reembolsos">↩ Reembolsos</button>
     <button class="chip" data-v="inadimplencia">💰 Inadimplência</button>
+    <button class="chip" data-v="carrinho">🛒 Carrinho abandonado</button>
     <button class="chip" data-v="alunos">🎓 Alunos</button>
     <button class="chip" data-v="assinaturas">🔁 Assinaturas</button>
     <button class="chip" data-v="utm">🎯 UTMs</button>
@@ -990,7 +991,8 @@ function exportReembCsv(){
 }
 
 /* ================= ÁREAS LAZY-LOAD ================= */
-const AREAS={inadimplencia:1, alunos:1, assinaturas:1, utm:1};
+const AREAS={inadimplencia:1, carrinho:1, alunos:1, assinaturas:1, utm:1};
+const AREA_DATA={carrinho:"inadimplencia"}; // carrinho usa o mesmo dataset da inadimplência
 RAW && (RAW.areas={});
 async function loadArea(nome){
   RAW.areas=RAW.areas||{};
@@ -1003,13 +1005,15 @@ async function loadArea(nome){
 }
 function renderArea(nome, P){
   const app=document.getElementById("app");
-  if(!RAW.areas || !RAW.areas[nome]){
-    app.innerHTML='<div class="loading">Carregando dados de '+nome+'…</div>';
-    loadArea(nome).then(()=>{ if(state.view===nome) render(); })
+  const dataArea = AREA_DATA[nome] || nome;
+  if(!RAW.areas || !RAW.areas[dataArea]){
+    app.innerHTML='<div class="loading">Carregando dados…</div>';
+    loadArea(dataArea).then(()=>{ if(state.view===nome) render(); })
       .catch(e=>{ app.innerHTML='<div class="err">Falha ao carregar: '+e.message+'</div>'; });
     return;
   }
   if(nome==="inadimplencia") renderInad();
+  else if(nome==="carrinho") renderCarrinho();
   else if(nome==="alunos") renderAlunos();
   else if(nome==="assinaturas") renderSub();
   else if(nome==="utm") renderUtm(P);
@@ -1039,45 +1043,203 @@ function inadRows(){
   });
 }
 function renderInad(){
-  const rows=inadRows();
-  const alunosR=rows.filter(r=>r.tipo==="parcela_aluno");
-  const chk=rows.filter(r=>r.tipo==="checkout_abandonado");
-  const chkQuente=chk.filter(r=>r.ja_e_aluno);
+  const rows=inadRows().filter(r=>r.tipo==="parcela_aluno");
   const valor=rows.reduce((s,r)=>s+(r.total_value||0),0);
-  const valorAluno=alunosR.reduce((s,r)=>s+(r.total_value||0),0);
   const comFone=rows.filter(r=>r.customer_phone).length;
+  const alunosDist=new Set(rows.map(r=>r.customer_email||r.customer_phone)).size;
+  const atras30=rows.filter(r=>r.dias_atraso>30).length;
   const app=document.getElementById("app");
   app.innerHTML='<div class="hero">'
-    +'<div class="tile bigr"><div class="lbl">Valor em aberto no período</div><div class="val">'+fmtBRL.format(valor)+'</div>'
-    +'<div class="delta">'+fmtN.format(rows.length)+' faturas não pagas · '+(rows.length?Math.round(comFone/rows.length*100):0)+'% com telefone</div></div>'
-    +tile("Parcelas de ALUNOS", fmtN.format(alunosR.length), '<div class="delta">'+fmtBRL.format(valorAluno)+' — prioridade Anne CS</div>')
-    +tile("Checkouts abandonados", fmtN.format(chk.length), '<div class="delta">venda não concluída</div>')
-    +tile("Abandonos de quem JÁ é aluno", fmtN.format(chkQuente.length), '<div class="delta">recuperação quente 🔥</div>')
-    +tile("Ticket médio em aberto", fmtBRL2.format(rows.length?valor/rows.length:0), '<div class="delta">por fatura</div>')
-    +tile("Com telefone p/ contato", fmtN.format(comFone), '<div class="delta">prontos p/ WhatsApp</div>')
+    +'<div class="tile bigr"><div class="lbl">Mensalidades/parcelas em atraso</div><div class="val">'+fmtBRL.format(valor)+'</div>'
+    +'<div class="delta">'+fmtN.format(rows.length)+' faturas de alunos no período</div></div>'
+    +tile("Alunos afetados", fmtN.format(alunosDist), '<div class="delta">prioridade Anne CS</div>')
+    +tile("Faturas em atraso", fmtN.format(rows.length), '<div class="delta">parcelas + renovações</div>')
+    +tile("Atraso > 30 dias", fmtN.format(atras30), '<div class="delta" style="color:var(--s8)">risco de churn</div>')
+    +tile("Ticket médio", fmtBRL2.format(rows.length?valor/rows.length:0), '<div class="delta">por fatura</div>')
+    +tile("Com telefone", fmtN.format(comFone), '<div class="delta">prontos p/ WhatsApp</div>')
     +'</div>'
-    +'<div class="card" style="margin-bottom:12px"><div class="card-head"><div><h2>Produtos com mais dinheiro em aberto</h2><div class="hint">Período selecionado</div></div></div><div id="in-prod"></div></div>'
-    +'<div class="card tbl-card" style="margin-bottom:12px"><div class="card-head"><div><h2>🎯 Alunos inadimplentes (parcelas/renovações)</h2><div class="hint" id="in-hint-a"></div></div>'
-    +'<button class="btn-csv" data-csv="aluno">⬇ CSV p/ Anne CS</button></div><div class="tbl-wrap" id="in-tbl-a"></div></div>'
-    +'<div class="card tbl-card"><div class="card-head"><div><h2>Checkouts abandonados</h2><div class="hint" id="in-hint-c"></div></div>'
-    +'<button class="btn-csv" data-csv="checkout">⬇ CSV</button></div><div class="tbl-wrap" id="in-tbl-c"></div>'
-    +'<div class="foot-note">🔥 = já é aluno de outro produto. Filtro de período usa a data de criação da fatura. Use a busca no topo.</div></div>';
-  const top=Object.values(rows.reduce((m,r)=>{ const k=r.product_hubla_id;
+    +'<div class="card" style="margin-bottom:12px"><div class="card-head"><div><h2>Produtos com mais parcelas em atraso</h2><div class="hint">Período selecionado</div></div></div><div id="in-prod"></div></div>'
+    +'<div class="card tbl-card"><div class="card-head"><div><h2>🎯 Alunos inadimplentes (parcelas/renovações)</h2><div class="hint" id="in-hint-a"></div></div>'
+    +'<button class="btn-csv" id="in-csv">⬇ CSV p/ Anne CS</button></div><div class="tbl-wrap" id="in-tbl-a"></div>'
+    +'<div class="foot-note">Tentativas de matrícula nova ficam na aba 🛒 Carrinho abandonado. Filtro de período usa a data de criação da fatura. Busca no topo.</div></div>';
+  const top=Object.values(rows.reduce((m,r)=>{ const k=(r.product_name||"").toUpperCase();
     (m[k]=m[k]||{nome:r.product_name,v:0,n:0}); m[k].v+=r.total_value||0; m[k].n++; return m; },{}))
     .sort((a,b)=>b.v-a.v).slice(0,8);
   barList(document.getElementById("in-prod"), top.map(t=>({nome:t.nome, pct:t.v, valor:fmtC(t.v), extra:fmtN.format(t.n)+" faturas"})), getCss("--s4"));
-  renderInadTables();
-  document.querySelectorAll("[data-csv]").forEach(b=>b.addEventListener("click",()=>{
-    const ehAluno=b.dataset.csv==="aluno";
-    const rs= ehAluno? inadFiltered().filter(r=>r.tipo==="parcela_aluno")
-                     : agruparCheckouts(inadFiltered().filter(r=>r.tipo==="checkout_abandonado"));
-    csvDownload("inadimplencia_"+b.dataset.csv+"_"+W.from+"_a_"+W.to+".csv",
-      ["nome","email","telefone","produto","valor",(ehAluno?"parcela":"tentativas"),"data_criacao","vencimento","dias_atraso","metodo","ja_e_aluno"],
+  renderInadTable();
+  document.getElementById("in-csv").addEventListener("click",()=>{
+    const rs=inadFiltered().filter(r=>r.tipo==="parcela_aluno");
+    csvDownload("inadimplencia_alunos_"+W.from+"_a_"+W.to+".csv",
+      ["nome","email","telefone","produto","valor","parcela","data_criacao","vencimento","dias_atraso","metodo"],
       rs.map(r=>[r.customer_name,r.customer_email,r.customer_phone,r.product_name,
         String(r.total_value??"").replace(".",","),
-        ehAluno? (r.smart_installment_current?r.smart_installment_current+"/"+r.smart_installment_total:"") : (r.tentativas||1),
-        r.data_criacao,r.due_date||"",r.dias_atraso,r.payment_method||"",r.ja_e_aluno?"sim":"não"]));
+        r.smart_installment_current?r.smart_installment_current+"/"+r.smart_installment_total:"",
+        r.data_criacao,r.due_date||"",r.dias_atraso,r.payment_method||""]));
+  });
+}
+function renderInadTable(){
+  const a=inadFiltered().filter(r=>r.tipo==="parcela_aluno").sort((x,y)=>(y.total_value||0)-(x.total_value||0));
+  document.getElementById("in-hint-a").textContent=fmtN.format(a.length)+" faturas · "+fmtC(a.reduce((s,r)=>s+(r.total_value||0),0))+(a.length>300?" (mostrando 300 — exporte o CSV)":"");
+  document.getElementById("in-tbl-a").innerHTML=inadTbl(a,300,false);
+}
+
+/* ---------- 🛒 CARRINHO ABANDONADO ---------- */
+function renderCarrinho(){
+  const leads=agruparCheckouts(inadRows().filter(r=>r.tipo==="checkout_abandonado"));
+  const valor=leads.reduce((s,r)=>s+(r.total_value||0),0);
+  const quentes=leads.filter(r=>r.ja_e_aluno).length;
+  const multi=leads.filter(r=>(r.tentativas||1)>=2).length;
+  const comFone=leads.filter(r=>r.customer_phone).length;
+  const d=RAW.areas.inadimplencia;
+  const recuperados=(d.disparos||[]).filter(x=>x.status==="convertido");
+  const recValor=recuperados.reduce((s,x)=>s+(+x.valor_convertido||0),0);
+  const app=document.getElementById("app");
+  app.innerHTML='<div class="hero">'
+    +'<div class="tile big"><div class="lbl">Valor potencial no período</div><div class="val">'+fmtBRL.format(valor)+'</div>'
+    +'<div class="delta">'+fmtN.format(leads.length)+' leads tentaram se matricular e não concluíram</div></div>'
+    +tile("Leads de carrinho", fmtN.format(leads.length), '<div class="delta">tentativas agrupadas por pessoa×curso</div>')
+    +tile("Já são alunos 🔥", fmtN.format(quentes), '<div class="delta">confiam na casa — mais quentes</div>')
+    +tile("2+ tentativas", fmtN.format(multi), '<div class="delta">máxima intenção de compra</div>')
+    +tile("Com telefone", fmtN.format(comFone), '<div class="delta">alcançáveis pela Anne</div>')
+    +tile("Recuperados pela Anne", fmtC(recValor), '<div class="delta">'+fmtN.format(recuperados.length)+' conversões pós-disparo</div>')
+    +'</div>'
+    +'<div class="card" style="margin-bottom:12px"><div class="card-head"><div><h2>🤖 Campanhas Anne Vendedora</h2>'
+    +'<div class="hint">Template aprovado na Meta + agente; dispara sozinho '+ "30 min" +' após o abandono (24h/dia; reaborda após 7 dias)</div></div>'
+    +'<button class="btn-csv" id="cp-nova">➕ Nova campanha</button></div><div id="cp-list"></div><div id="cp-form" style="display:none"></div>'
+    +'<div class="tbl-wrap" id="cp-disparos" style="margin-top:12px"></div></div>'
+    +'<div class="card" style="margin-bottom:12px"><div class="card-head"><div><h2>Cursos com mais carrinhos abandonados</h2><div class="hint">Período selecionado · por leads</div></div></div><div id="ca-prod"></div></div>'
+    +'<div class="card tbl-card"><div class="card-head"><div><h2>Leads de carrinho abandonado</h2><div class="hint" id="ca-hint"></div></div>'
+    +'<button class="btn-csv" id="ca-csv">⬇ CSV</button></div><div class="tbl-wrap" id="ca-tbl"></div>'
+    +'<div class="foot-note">🔥 = já é aluno de outro produto (aparecem primeiro). Quem concluiu a compra depois é excluído automaticamente. Busca no topo.</div></div>';
+  const top=Object.values(leads.reduce((m,r)=>{ const k=(r.product_name||"").toUpperCase();
+    (m[k]=m[k]||{nome:r.product_name,v:0,n:0}); m[k].v+=r.total_value||0; m[k].n++; return m; },{}))
+    .sort((a,b)=>b.n-a.n).slice(0,8);
+  barList(document.getElementById("ca-prod"), top.map(t=>({nome:t.nome, pct:t.n, valor:fmtN.format(t.n)+" leads", extra:fmtC(t.v)+" potencial"})), getCss("--gold")||"#d9a53f");
+  renderCarrinhoTable();
+  renderCampanhas();
+  document.getElementById("cp-nova").addEventListener("click",()=>campForm());
+  document.getElementById("ca-csv").addEventListener("click",()=>{
+    const rs=carrinhoFiltered();
+    csvDownload("carrinho_abandonado_"+W.from+"_a_"+W.to+".csv",
+      ["nome","email","telefone","curso","valor","tentativas","ultima_tentativa","ja_e_aluno"],
+      rs.map(r=>[r.customer_name,r.customer_email,r.customer_phone,r.product_name,
+        String(r.total_value??"").replace(".",","),r.tentativas||1,r.data_criacao,r.ja_e_aluno?"sim":"não"]));
+  });
+}
+function carrinhoFiltered(){
+  return agruparCheckouts(inadFiltered().filter(r=>r.tipo==="checkout_abandonado"));
+}
+function renderCarrinhoTable(){
+  const c=carrinhoFiltered();
+  document.getElementById("ca-hint").textContent=fmtN.format(c.length)+" leads (tentativas agrupadas) — 🔥 primeiro"+(c.length>300?" (mostrando 300 — exporte o CSV)":"");
+  document.getElementById("ca-tbl").innerHTML=inadTbl(c,300,true);
+}
+
+/* ---------- campanhas Anne (config) ---------- */
+const ANNE_BASE="https://workflows.manager03.scvpgti.com.br/webhook";
+let anneTpls=null, anneAgts=null;
+async function fetchAnne(path, fallback){
+  try{
+    const r=await fetch(ANNE_BASE+path);
+    if(!r.ok) throw 0;
+    const j=await r.json();
+    const arr=Array.isArray(j)? j : (j.templates||j.agentes||j.data||[]);
+    return arr.length? arr : fallback;
+  }catch(e){ return fallback; }
+}
+async function loadAnneMeta(){
+  if(!anneTpls) anneTpls=await fetchAnne("/anne/meta/templates", []);
+  if(!anneAgts) anneAgts=await fetchAnne("/anne/agentes",
+    [{slug:"roteador",name:"Roteador (triagem)"},{slug:"elite_prf",name:"Elite PRF"},{slug:"elite_tjam",name:"Elite TJ-AM"}]);
+}
+function renderCampanhas(){
+  const d=RAW.areas.inadimplencia;
+  const cs=d.campanhas||[];
+  const el=document.getElementById("cp-list");
+  el.innerHTML = cs.length? cs.map(c=>
+    '<div class="crow"><span class="nm">'+(c.ativa?'🟢':'⚪')+' <b>'+c.nome+'</b>'
+    +'<small>'+c.produtos.length+' produto(s) · template <b>'+c.template_name+'</b> · agente <b>'+c.agent_slug+'</b>'
+    +(c.anne_campaign_id?'':' · <span style="color:var(--s4)">aguardando 1º ciclo do motor</span>')+'</small></span>'
+    +'<span class="pills">'
+    +'<button class="pill" data-cact="toggle" data-cid="'+c.id+'">'+(c.ativa?"Pausar":"Ativar")+'</button>'
+    +'<button class="pill" data-cact="edit" data-cid="'+c.id+'">Editar</button>'
+    +'<button class="pill" data-cact="del" data-cid="'+c.id+'" style="color:var(--s8)">✕</button>'
+    +'</span></div>').join("")
+    : '<div class="hint">Nenhuma campanha ainda — crie a primeira e a Anne passa a atacar os carrinhos abandonados sozinha.</div>';
+  el.querySelectorAll(".pill").forEach(b=>b.addEventListener("click",async()=>{
+    const c=cs.find(x=>x.id===b.dataset.cid); if(!c) return;
+    if(b.dataset.cact==="edit") return campForm(c);
+    if(b.dataset.cact==="toggle"){
+      const r=await postApi({campanha_carrinho:{...c, ativa:!c.ativa}});
+      Object.assign(c, r.campanha||{}); renderCampanhas(); return;
+    }
+    if(b.dataset.cact==="del"){
+      if(!confirm('Excluir a campanha "'+c.nome+'"? (histórico de disparos é mantido)')) return;
+      await postApi({delete_campanha:c.id});
+      d.campanhas=cs.filter(x=>x.id!==c.id); renderCampanhas();
+    }
   }));
+  const disp=(d.disparos||[]).slice(0,50);
+  document.getElementById("cp-disparos").innerHTML = disp.length?
+    '<table><thead><tr><th style="text-align:left;padding-left:22px">Disparo</th><th style="text-align:left">Lead</th>'
+    +'<th style="text-align:left">Curso</th><th>Valor</th><th>Status</th></tr></thead><tbody>'
+    +disp.map(x=>'<tr><td style="text-align:left;padding-left:22px">'+(x.sent_at? new Date(x.sent_at).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"—")+'</td>'
+      +'<td style="text-align:left">'+(x.lead_nome||"—")+'<br><span style="color:var(--muted);font-size:11px">'+(x.phone_norm||"")+'</span></td>'
+      +'<td style="text-align:left;max-width:220px;overflow:hidden;text-overflow:ellipsis">'+(x.produto_nome||"—")+'</td>'
+      +'<td>'+fmtBRL.format(x.valor||0)+'</td>'
+      +'<td>'+(x.status==="convertido"?'<span class="badge rb" style="background:rgba(12,163,12,.15);color:var(--good)">CONVERTIDO 🎉</span>'
+             : x.status==="falha"?'<span class="badge cb">FALHA</span>':'<span class="badge dp" style="background:rgba(57,135,229,.15);color:var(--s1)">ENVIADO</span>')+'</td></tr>').join("")
+    +'</tbody></table>' : '';
+}
+async function campForm(c){
+  const f=document.getElementById("cp-form");
+  f.style.display="block";
+  f.innerHTML='<div class="hint" style="padding:12px 0">Carregando templates aprovados e agentes da Anne…</div>';
+  await loadAnneMeta();
+  const leadsProds=Object.values(agruparCheckouts(inadRows().filter(r=>r.tipo==="checkout_abandonado"))
+    .reduce((m,r)=>{ const k=(r.product_name||"").toUpperCase().trim();
+      (m[k]=m[k]||{nome:k,n:0}); m[k].n++; return m; },{})).sort((a,b)=>b.n-a.n);
+  const sel=new Set((c?.produtos||[]).map(p=>p.toUpperCase()));
+  for(const p of sel) if(!leadsProds.find(x=>x.nome===p)) leadsProds.push({nome:p,n:0});
+  f.innerHTML='<div style="border-top:1px solid var(--ring);padding-top:14px;margin-top:6px">'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">'
+    +'<div><label class="dstat-l" style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:600">Nome da campanha</label>'
+    +'<input class="search" id="cf-nome" style="width:100%;margin-top:4px" value="'+(c?.nome||"")+'" '+(c?'readonly style="width:100%;margin-top:4px;opacity:.6"':'')+'></div>'
+    +'<div><label style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:600">Template aprovado (Meta)</label>'
+    +'<select class="search" id="cf-tpl" style="width:100%;margin-top:4px">'
+    +(anneTpls.length? anneTpls.map(t=>{const n=t.name||t; return '<option value="'+n+'" '+((c?.template_name)===n?"selected":"")+'>'+n+'</option>';}).join("")
+      : '<option value="">— nenhum template aprovado encontrado —</option>')
+    +'</select></div>'
+    +'<div><label style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:600">Agente da Anne</label>'
+    +'<select class="search" id="cf-agt" style="width:100%;margin-top:4px">'
+    +anneAgts.map(a=>{const s=a.slug||a; return '<option value="'+s+'" '+((c?.agent_slug)===s?"selected":"")+'>'+(a.name||s)+'</option>';}).join("")
+    +'</select></div></div>'
+    +'<label style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:600;display:block;margin-top:12px">Cursos-alvo (carrinhos do período p/ referência)</label>'
+    +'<div id="cf-prods" style="max-height:180px;overflow-y:auto;margin-top:6px;border:1px solid var(--ring);border-radius:10px;padding:8px 12px">'
+    +leadsProds.map(p=>'<label style="display:flex;gap:8px;align-items:center;padding:4px 0;cursor:pointer;font-size:13px;color:var(--ink-2)">'
+      +'<input type="checkbox" value="'+p.nome+'" '+(sel.has(p.nome)?"checked":"")+' style="accent-color:var(--gold)"> '+p.nome
+      +(p.n?' <span style="color:var(--muted);font-size:11px">('+p.n+' leads no período)</span>':"")+'</label>').join("")
+    +'</div>'
+    +'<div style="display:flex;gap:10px;margin-top:12px;align-items:center">'
+    +'<button class="chip" id="cf-save" style="background:var(--gold);color:#161204;font-weight:700">Salvar campanha</button>'
+    +'<label style="font-size:13px;color:var(--ink-2);display:flex;gap:6px;align-items:center"><input type="checkbox" id="cf-ativa" '+(c?.ativa?"checked":"")+' style="accent-color:var(--gold)"> Ativa (dispara sozinha)</label>'
+    +'<button class="chip" id="cf-cancel">Cancelar</button>'
+    +'<span class="hint">Delay 30 min · 24h/dia · reaborda após 7 dias</span></div></div>';
+  document.getElementById("cf-cancel").addEventListener("click",()=>{ f.style.display="none"; });
+  document.getElementById("cf-save").addEventListener("click",async()=>{
+    const nome=document.getElementById("cf-nome").value.trim();
+    const tpl=document.getElementById("cf-tpl").value;
+    const agt=document.getElementById("cf-agt").value;
+    const prods=[...document.querySelectorAll("#cf-prods input:checked")].map(i=>i.value);
+    if(!nome||!tpl||!agt||!prods.length){ alert("Preencha nome, template, agente e ao menos 1 curso."); return; }
+    try{
+      const r=await postApi({campanha_carrinho:{nome, template_name:tpl, agent_slug:agt, produtos:prods,
+        ativa:document.getElementById("cf-ativa").checked}});
+      const d=RAW.areas.inadimplencia;
+      d.campanhas=(d.campanhas||[]).filter(x=>x.nome!==nome).concat([r.campanha]).sort((a,b)=>a.nome.localeCompare(b.nome));
+      f.style.display="none"; renderCampanhas();
+    }catch(e){ alert("Erro ao salvar: "+e.message); }
+  });
 }
 function inadFiltered(){
   const q=state.q.trim().toUpperCase();
@@ -1116,15 +1278,6 @@ function agruparCheckouts(c){
     }
   }
   return Object.values(g).sort((x,y)=>(y.ja_e_aluno?1:0)-(x.ja_e_aluno?1:0)||(y.tentativas-x.tentativas)||(y.total_value||0)-(x.total_value||0));
-}
-function renderInadTables(){
-  const f=inadFiltered();
-  const a=f.filter(r=>r.tipo==="parcela_aluno").sort((x,y)=>(y.total_value||0)-(x.total_value||0));
-  const c=agruparCheckouts(f.filter(r=>r.tipo==="checkout_abandonado"));
-  document.getElementById("in-hint-a").textContent=fmtN.format(a.length)+" faturas · "+fmtC(a.reduce((s,r)=>s+(r.total_value||0),0))+(a.length>300?" (mostrando 300 — exporte o CSV)":"");
-  document.getElementById("in-hint-c").textContent=fmtN.format(c.length)+" leads (tentativas agrupadas) — 🔥 primeiro"+(c.length>300?" (mostrando 300 — exporte o CSV)":"");
-  document.getElementById("in-tbl-a").innerHTML=inadTbl(a,300,false);
-  document.getElementById("in-tbl-c").innerHTML=inadTbl(c,300,true);
 }
 
 /* ---------- 🎓 ALUNOS ---------- */
@@ -1451,7 +1604,8 @@ document.getElementById("cat-chips").addEventListener("click",e=>{
 document.getElementById("search").addEventListener("input",e=>{ state.q=e.target.value;
   const v=state.view;
   if(v==="reembolsos") renderReembLeads();
-  else if(v==="inadimplencia" && RAW.areas?.inadimplencia) renderInadTables();
+  else if(v==="inadimplencia" && RAW.areas?.inadimplencia) renderInadTable();
+  else if(v==="carrinho" && RAW.areas?.inadimplencia) renderCarrinhoTable();
   else if(v==="alunos" && RAW.areas?.alunos) renderAluTable();
   else if(v==="assinaturas" && RAW.areas?.assinaturas) renderSubTable();
   else if(v==="utm" && RAW.areas?.utm) renderUtmCamp();
