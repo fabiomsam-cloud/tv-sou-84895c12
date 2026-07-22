@@ -1068,13 +1068,14 @@ function renderInad(){
   barList(document.getElementById("in-prod"), top.map(t=>({nome:t.nome, pct:t.v, valor:fmtC(t.v), extra:fmtN.format(t.n)+" faturas"})), getCss("--s4"));
   renderInadTables();
   document.querySelectorAll("[data-csv]").forEach(b=>b.addEventListener("click",()=>{
-    const tipo=b.dataset.csv==="aluno"?"parcela_aluno":"checkout_abandonado";
-    const rs=inadFiltered().filter(r=>r.tipo===tipo);
+    const ehAluno=b.dataset.csv==="aluno";
+    const rs= ehAluno? inadFiltered().filter(r=>r.tipo==="parcela_aluno")
+                     : agruparCheckouts(inadFiltered().filter(r=>r.tipo==="checkout_abandonado"));
     csvDownload("inadimplencia_"+b.dataset.csv+"_"+W.from+"_a_"+W.to+".csv",
-      ["nome","email","telefone","produto","valor","parcela","data_criacao","vencimento","dias_atraso","metodo","ja_e_aluno"],
+      ["nome","email","telefone","produto","valor",(ehAluno?"parcela":"tentativas"),"data_criacao","vencimento","dias_atraso","metodo","ja_e_aluno"],
       rs.map(r=>[r.customer_name,r.customer_email,r.customer_phone,r.product_name,
         String(r.total_value??"").replace(".",","),
-        r.smart_installment_current?r.smart_installment_current+"/"+r.smart_installment_total:"",
+        ehAluno? (r.smart_installment_current?r.smart_installment_current+"/"+r.smart_installment_total:"") : (r.tentativas||1),
         r.data_criacao,r.due_date||"",r.dias_atraso,r.payment_method||"",r.ja_e_aluno?"sim":"não"]));
   }));
 }
@@ -1085,28 +1086,45 @@ function inadFiltered(){
     || (r.customer_email||"").toUpperCase().includes(q)
     || (r.product_name||"").toUpperCase().includes(q));
 }
-function inadTbl(rs, cap){
+function inadTbl(rs, cap, comTentativas){
   return '<table><thead><tr><th style="text-align:left;padding-left:22px">Lead</th><th style="text-align:left">Contato</th>'
-    +'<th style="text-align:left">Produto</th><th>Valor</th><th>Parcela</th><th>Criada</th><th>Vencimento</th><th>Atraso</th><th>Método</th></tr></thead><tbody>'
+    +'<th style="text-align:left">Produto</th><th>Valor</th><th>'+(comTentativas?"Tentativas":"Parcela")+'</th><th>Última</th><th>Vencimento</th><th>Atraso</th><th>Método</th></tr></thead><tbody>'
     +rs.slice(0,cap).map(r=>'<tr>'
       +'<td>'+(r.customer_name||"—")+(r.ja_e_aluno&&r.tipo==="checkout_abandonado"?" 🔥":"")+'</td>'
       +'<td style="text-align:left;color:var(--ink-2)">'+(r.customer_email||"—")+'<br><span style="color:var(--muted)">'+(r.customer_phone||"")+'</span></td>'
       +'<td style="text-align:left;max-width:220px;overflow:hidden;text-overflow:ellipsis" title="'+(r.product_name||"")+'">'+(r.product_name||"—")+'</td>'
       +'<td><b style="color:var(--ink)">'+fmtBRL.format(r.total_value||0)+'</b></td>'
-      +'<td>'+(r.smart_installment_current?r.smart_installment_current+"/"+r.smart_installment_total:"—")+'</td>'
+      +'<td>'+(comTentativas
+          ? (r.tentativas>1?'<b style="color:var(--gold)">×'+r.tentativas+'</b>':'1')
+          : (r.smart_installment_current?r.smart_installment_current+"/"+r.smart_installment_total:"—"))+'</td>'
       +'<td>'+dataBR(r.data_criacao)+'</td>'
       +'<td>'+(r.due_date?dataBR(r.due_date):"—")+'</td>'
       +'<td class="'+(r.dias_atraso>30?"reemb-hi":"")+'">'+r.dias_atraso+'d</td>'
       +'<td>'+(r.payment_method||"—")+'</td></tr>').join("")+'</tbody></table>';
 }
+function agruparCheckouts(c){
+  // 1 linha por pessoa×curso: conta tentativas, mantém a mais recente e o maior valor
+  const g={};
+  for(const r of c){
+    const k=(r.customer_email||r.customer_phone||r.invoice_id)+"|"+(r.product_name||"").toUpperCase().trim();
+    const x=g[k];
+    if(!x) g[k]={...r, tentativas:1};
+    else{
+      x.tentativas++;
+      if(r.data_criacao>x.data_criacao){ x.data_criacao=r.data_criacao; x.dias_atraso=r.dias_atraso; x.due_date=r.due_date; x.payment_method=r.payment_method; }
+      x.total_value=Math.max(x.total_value||0, r.total_value||0);
+    }
+  }
+  return Object.values(g).sort((x,y)=>(y.ja_e_aluno?1:0)-(x.ja_e_aluno?1:0)||(y.tentativas-x.tentativas)||(y.total_value||0)-(x.total_value||0));
+}
 function renderInadTables(){
   const f=inadFiltered();
   const a=f.filter(r=>r.tipo==="parcela_aluno").sort((x,y)=>(y.total_value||0)-(x.total_value||0));
-  const c=f.filter(r=>r.tipo==="checkout_abandonado").sort((x,y)=>(y.ja_e_aluno?1:0)-(x.ja_e_aluno?1:0)||(y.total_value||0)-(x.total_value||0));
+  const c=agruparCheckouts(f.filter(r=>r.tipo==="checkout_abandonado"));
   document.getElementById("in-hint-a").textContent=fmtN.format(a.length)+" faturas · "+fmtC(a.reduce((s,r)=>s+(r.total_value||0),0))+(a.length>300?" (mostrando 300 — exporte o CSV)":"");
-  document.getElementById("in-hint-c").textContent=fmtN.format(c.length)+" faturas — 🔥 primeiro"+(c.length>300?" (mostrando 300 — exporte o CSV)":"");
-  document.getElementById("in-tbl-a").innerHTML=inadTbl(a,300);
-  document.getElementById("in-tbl-c").innerHTML=inadTbl(c,300);
+  document.getElementById("in-hint-c").textContent=fmtN.format(c.length)+" leads (tentativas agrupadas) — 🔥 primeiro"+(c.length>300?" (mostrando 300 — exporte o CSV)":"");
+  document.getElementById("in-tbl-a").innerHTML=inadTbl(a,300,false);
+  document.getElementById("in-tbl-c").innerHTML=inadTbl(c,300,true);
 }
 
 /* ---------- 🎓 ALUNOS ---------- */
