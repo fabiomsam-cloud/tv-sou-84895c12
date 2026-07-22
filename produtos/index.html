@@ -194,7 +194,7 @@ footer{margin-top:26px;color:var(--muted);font-size:11.5px;display:flex;justify-
         <button class="chip" data-r="mes">Este mês</button>
         <button class="chip" data-r="3m">3m</button>
         <button class="chip" data-r="6m">6m</button>
-        <button class="chip on" data-r="12m">12m</button>
+        <button class="chip" data-r="12m">12m</button>
         <button class="chip" data-r="tudo">Tudo</button>
         <button class="chip" data-r="custom" id="chip-custom">Personalizado</button>
       </div>
@@ -288,7 +288,28 @@ function nDays(a,b){ return Math.round((Date.parse(b)-Date.parse(a))/864e5)+1; }
 
 /* ================= estado ================= */
 let RAW=null, DATA_MIN=null;
-let state={range:{mode:"12m"}, cat:"", q:"", sort:{col:"liquida",dir:-1}, grupoId:null, view:"geral", aluFiltro:"todos"};
+/* período padrão = HOJE; o escolhido fica salvo no navegador e sobrevive ao recarregar */
+function loadRange(){
+  try{
+    const r=JSON.parse(localStorage.getItem("dash_range")||"null");
+    if(r && ["hoje","ontem","7d","mes","3m","6m","12m","tudo","custom"].includes(r.mode)){
+      if(r.mode==="custom" && !(r.from && r.to)) return {mode:"hoje"};
+      return r;
+    }
+  }catch(e){}
+  return {mode:"hoje"};
+}
+function saveRange(){ try{ localStorage.setItem("dash_range", JSON.stringify(state.range)); }catch(e){} }
+function syncPeriodChips(){
+  document.querySelectorAll("#period-chips .chip").forEach(c=>c.classList.toggle("on", c.dataset.r===state.range.mode));
+  if(state.range.mode==="custom"){
+    const ch=document.getElementById("chip-custom");
+    ch.textContent=dataBR(state.range.from).slice(0,5)+" – "+dataBR(state.range.to).slice(0,5);
+    document.getElementById("d-from").value=state.range.from;
+    document.getElementById("d-to").value=state.range.to;
+  }
+}
+let state={range:loadRange(), cat:"", q:"", sort:{col:"liquida",dir:-1}, grupoId:null, view:"geral", aluFiltro:"todos"};
 
 /* ================= boot ================= */
 (async function(){
@@ -328,6 +349,7 @@ function prep(){
   const df=document.getElementById("d-from"), dt=document.getElementById("d-to");
   df.min=dt.min=DATA_MIN; df.max=dt.max=hojeBRT();
   df.value=addDays(hojeBRT(),-29); dt.value=hojeBRT();
+  syncPeriodChips();
 }
 
 /* janela atual + anterior (mesma duração, imediatamente antes) */
@@ -1383,6 +1405,7 @@ document.getElementById("period-chips").addEventListener("click",e=>{
   document.querySelectorAll("#period-chips .chip").forEach(c=>c.classList.remove("on"));
   b.classList.add("on"); state.range={mode:b.dataset.r};
   document.getElementById("chip-custom").textContent="Personalizado";
+  saveRange();
   render();
 });
 document.getElementById("d-apply").addEventListener("click",()=>{
@@ -1394,6 +1417,7 @@ document.getElementById("d-apply").addEventListener("click",()=>{
   const ch=document.getElementById("chip-custom");
   ch.classList.add("on"); ch.textContent=dataBR(f).slice(0,5)+" – "+dataBR(t).slice(0,5);
   pop.classList.remove("open");
+  saveRange();
   render();
 });
 document.addEventListener("click",e=>{
