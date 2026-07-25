@@ -664,12 +664,48 @@ function openDrawer(id){
    +dstat("Líquida (período)",fmtC(d.liquida))+dstat("Matrículas (período)",fmtN.format(d.mat))+dstat("Alunos novos",fmtN.format(d.novos))
    +dstat("Líquida histórica",fmtC(p.receita_liquida))+dstat("Alunos únicos",fmtN.format(p.alunos_unicos))+dstat("Ticket líquido/matríc.",fmtBRL2.format(p.ticket_matricula||0))
    +dstat("Matrículas ativas",fmtN.format(p.ativas||0))+dstat("Matríc. reembolsadas",fmtN.format(p.matriculas_reemb||0))+dstat("Taxa reembolso",(p.taxa_reembolso_pct??0).toLocaleString("pt-BR")+"%")
-   +'</div><h4>Receita líquida (período selecionado)</h4><div id="dr-chart"></div>';
+   +'</div><h4>Receita líquida (período selecionado)</h4><div id="dr-chart"></div>'
+   +'<h4 style="display:flex;justify-content:space-between;align-items:center">🎓 Alunos matriculados no período <span id="dr-mat-n" class="hint" style="text-transform:none;letter-spacing:0"></span></h4>'
+   +'<div id="dr-mats" class="hint">Carregando alunos…</div>';
   drawerChart(p,d);
+  drawerMats(p);
   document.getElementById("overlay").classList.add("open"); dr.classList.add("open");
   document.getElementById("dr-close").onclick=closeDrawer;
 }
 function dstat(l,v){ return '<div class="dstat"><div class="l">'+l+'</div><div class="v">'+v+'</div></div>'; }
+
+/* alunos matriculados no período, dentro do drawer do produto (lazy: ?area=matriculas) */
+async function drawerMats(p){
+  const el=document.getElementById("dr-mats"); if(!el) return;
+  try{
+    if(!(RAW.areas&&RAW.areas.matriculas)) await loadArea("matriculas");
+  }catch(e){ el.innerHTML='<span style="color:var(--s8)">Falha ao carregar: '+e.message+'</span>'; return; }
+  if(!document.getElementById("dr-mats")) return; // drawer fechado durante o fetch
+  const rows=(RAW.areas.matriculas.matriculas||[])
+    .filter(m=>m.product_hubla_id===p.product_hubla_id && m.data_matricula>=W.from && m.data_matricula<=W.to)
+    .sort((a,b)=>(b.data_matricula||"").localeCompare(a.data_matricula||""));
+  document.getElementById("dr-mat-n").innerHTML=fmtN.format(rows.length)+" no período "
+    +'<button class="btn-csv" id="dr-mat-csv" style="margin-left:8px">⬇ CSV</button>';
+  const CAP=150;
+  el.innerHTML = rows.length?
+    '<div class="tbl-wrap" style="max-height:300px;overflow-y:auto"><table><tbody>'
+    +rows.slice(0,CAP).map(m=>'<tr>'
+      +'<td style="text-align:left;padding-left:2px">'+(m.nome||"—")
+      +'<br><span style="color:var(--muted);font-size:11px">'+(m.email||"")+' · '+(m.phone||"")+'</span></td>'
+      +'<td style="white-space:nowrap">'+dataBR(m.data_matricula)+'</td>'
+      +'<td style="white-space:nowrap"><b style="color:var(--ink)">'+fmtBRL.format(m.liquido_pago||0)+'</b>'
+      +(m.parcelas_pagas>1?'<br><span style="color:var(--muted);font-size:11px">'+m.parcelas_pagas+' parcelas pagas</span>':'')+'</td>'
+      +'</tr>').join("")
+    +'</tbody></table></div>'
+    +(rows.length>CAP?'<div class="hint" style="padding-top:8px">Mostrando '+CAP+' — exporte o CSV p/ a lista completa.</div>':'')
+    : '<span>Nenhuma matrícula no período selecionado ('+dataBR(W.from)+' → '+dataBR(W.to)+').</span>';
+  const btn=document.getElementById("dr-mat-csv");
+  if(btn) btn.addEventListener("click",()=>{
+    csvDownload("matriculas_"+(p.product_name||"produto").replace(/[^A-Za-z0-9]+/g,"_")+"_"+W.from+"_a_"+W.to+".csv",
+      ["nome","email","telefone","data_matricula","liquido_pago","parcelas_pagas"],
+      rows.map(m=>[m.nome,m.email,m.phone,m.data_matricula,String(m.liquido_pago??"").replace(".",","),m.parcelas_pagas]));
+  });
+}
 function closeDrawer(){ document.getElementById("overlay").classList.remove("open");
   document.getElementById("drawer").classList.remove("open");
   document.getElementById("cfg").classList.remove("open"); }
