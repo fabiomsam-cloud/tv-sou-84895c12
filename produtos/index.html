@@ -310,7 +310,7 @@ function syncPeriodChips(){
     document.getElementById("d-to").value=state.range.to;
   }
 }
-let state={range:loadRange(), cat:"", q:"", sort:{col:"liquida",dir:-1}, grupoId:null, view:"geral", aluFiltro:"todos"};
+let state={range:loadRange(), cat:"", q:"", sort:{col:"liquida",dir:-1}, grupoId:null, view:"geral", aluFiltro:"todos", posAfin:""};
 
 /* ================= boot ================= */
 (async function(){
@@ -1333,6 +1333,19 @@ function renderAlunos(){
     +tile("Só 1 produto", fmtN.format(mono.length), '<div class="delta">leads de cross-sell 🎯</div>')
     +tile("Campeão", fmtBRL2.format(campeoes[0]?.ltv_liquido||0), '<div class="delta">'+(campeoes[0]?.nome||"—").split(" ")[0]+' · '+(campeoes[0]?.n_produtos||0)+' produtos</div>')
     +'</div>'
+    +'<div class="card" style="margin-bottom:12px"><div class="card-head"><div><h2>🎓 Radar de Pós-graduação</h2>'
+    +'<div class="hint">Alunos SEM pós e SEM inadimplência — prontos p/ oferta de Direito Policial ou Gestão Pública · sempre atualizado</div></div>'
+    +'<button class="btn-csv" id="pos-csv">⬇ CSV p/ campanha</button></div>'
+    +'<div class="dgrid" id="pos-kpis" style="grid-template-columns:repeat(5,1fr)"></div>'
+    +'<div class="grid g-two" style="margin-bottom:0"><div><h4 style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin:6px 0 10px;font-weight:600">Por afinidade</h4><div id="pos-dist"></div></div>'
+    +'<div><div class="chips" id="pos-afin" style="margin:6px 0 10px">'
+    +'<button class="chip'+(state.posAfin===""?" on":"")+'" data-a="">Todas</button>'
+    +'<button class="chip'+(state.posAfin==="Direito Policial"?" on":"")+'" data-a="Direito Policial">🚔 Direito Policial</button>'
+    +'<button class="chip'+(state.posAfin==="Gestão Pública"?" on":"")+'" data-a="Gestão Pública">🏛 Gestão Pública</button>'
+    +'<button class="chip'+(state.posAfin==="Ambas"?" on":"")+'" data-a="Ambas">Ambas</button>'
+    +'<button class="chip'+(state.posAfin==="Genéricos"?" on":"")+'" data-a="Genéricos">Genéricos</button></div>'
+    +'<div class="hint" id="pos-hint"></div></div></div>'
+    +'<div class="tbl-wrap" id="pos-tbl" style="max-height:420px;overflow-y:auto;margin-top:10px"></div></div>'
     +'<div class="grid g-two"><div class="card"><div class="card-head"><div><h2>Distribuição por nº de produtos</h2><div class="hint">Base completa</div></div></div><div id="al-dist"></div></div>'
     +'<div class="card"><div class="card-head"><div><h2>🏆 Alunos campeões (top LTV líquido)</h2><div class="hint">Clique p/ raio-x</div></div></div><div class="tbl-wrap" id="al-top" style="max-height:320px;overflow-y:auto"></div></div></div>'
     +'<div class="card tbl-card"><div class="card-head"><div><h2>Base de alunos</h2><div class="hint" id="al-hint"></div></div>'
@@ -1354,6 +1367,20 @@ function renderAlunos(){
       +'<br><span style="color:var(--muted);font-size:11px">'+(a.email||"")+'</span></td>'
       +'<td><b style="color:var(--ink)">'+fmtBRL.format(a.ltv_liquido||0)+'</b></td>'
       +'<td>'+a.n_produtos+' prod.</td></tr>').join("")+'</tbody></table>';
+  renderPos();
+  document.getElementById("pos-afin").addEventListener("click",e=>{
+    const b=e.target.closest(".chip"); if(!b) return;
+    state.posAfin=b.dataset.a;
+    document.querySelectorAll("#pos-afin .chip").forEach(c=>c.classList.toggle("on", c.dataset.a===state.posAfin));
+    renderPosTable();
+  });
+  document.getElementById("pos-csv").addEventListener("click",()=>{
+    const rs=posFiltered();
+    csvDownload("pos_graduacao_ofertaveis_"+(state.posAfin||"todas").replace(/\s+/g,"_")+".csv",
+      ["nome","email","telefone","afinidade","tier","produtos","ltv_liquido","ultima_compra"],
+      rs.map(a=>[a.nome,a.email,a.phone,a.afinidade,a.tem_elite?"A - Elite":"B - Low ticket",
+        a.produtos,String(a.ltv_liquido??"").replace(".",","),a.ultima_compra]));
+  });
   renderAluTable();
   document.getElementById("al-filtro").addEventListener("click",e=>{
     const b=e.target.closest(".chip"); if(!b) return;
@@ -1370,6 +1397,56 @@ function renderAlunos(){
   });
   document.getElementById("al-top").querySelectorAll("tr").forEach(tr=>tr.addEventListener("click",()=>openAluno(tr.dataset.ak)));
 }
+/* Radar de Pós: sem pós, sem inadimplência */
+function posBase(){
+  return (RAW.areas.alunos.alunos||[]).filter(a=>!a.tem_pos && !a.inadimplente);
+}
+function posFiltered(){
+  return posBase().filter(a=>!state.posAfin || a.afinidade===state.posAfin)
+    .sort((a,b)=>((b.tem_elite?1:0)-(a.tem_elite?1:0)) || ((b.ltv_liquido||0)-(a.ltv_liquido||0)));
+}
+function renderPos(){
+  const all=RAW.areas.alunos.alunos||[];
+  const base=posBase();
+  const elite=base.filter(a=>a.tem_elite);
+  const excl=all.filter(a=>!a.tem_pos && a.inadimplente).length;
+  const comPos=all.filter(a=>a.tem_pos).length;
+  const ltv=base.reduce((s,a)=>s+(a.ltv_liquido||0),0);
+  document.getElementById("pos-kpis").innerHTML=
+    dstat("Ofertáveis agora", fmtN.format(base.length))
+    +dstat("Alunos Elite (prioridade)", fmtN.format(elite.length))
+    +dstat("LTV da lista", fmtC(ltv))
+    +dstat("Excluídos (inadimplentes)", fmtN.format(excl))
+    +dstat("Já têm pós", fmtN.format(comPos));
+  const AF_COR={"Direito Policial":getCss("--s1"),"Gestão Pública":getCss("--s2"),"Ambas":getCss("--s4"),"Genéricos":getCss("--s3")};
+  const dist=["Direito Policial","Gestão Pública","Ambas","Genéricos"].map(k=>{
+    const g=base.filter(a=>a.afinidade===k);
+    return {nome:k, pct:g.length, cor:AF_COR[k],
+      valor:fmtN.format(g.length), extra:fmtN.format(g.filter(a=>a.tem_elite).length)+" Elite"};
+  });
+  barList(document.getElementById("pos-dist"), dist, getCss("--s1"));
+  renderPosTable();
+}
+function renderPosTable(){
+  const rs=posFiltered();
+  document.getElementById("pos-hint").textContent=fmtN.format(rs.length)+" alunos"
+    +(state.posAfin?" · "+state.posAfin:"")+" — Elite primeiro, por LTV"
+    +(rs.length>200?" (mostrando 200 — exporte o CSV)":"");
+  const AF_COR={"Direito Policial":getCss("--s1"),"Gestão Pública":getCss("--s2"),"Ambas":getCss("--s4"),"Genéricos":getCss("--s3")};
+  document.getElementById("pos-tbl").innerHTML='<table><thead><tr>'
+    +'<th style="text-align:left;padding-left:22px">Aluno</th><th style="text-align:left">Contato</th>'
+    +'<th>Afinidade</th><th>Tier</th><th style="text-align:left">Produtos que já tem</th><th>LTV líquido</th></tr></thead><tbody>'
+    +rs.slice(0,200).map(a=>'<tr data-ak="'+a.aluno_key+'">'
+      +'<td>'+(a.nome||"—")+'</td>'
+      +'<td style="text-align:left;color:var(--ink-2)">'+(a.email||"—")+'<br><span style="color:var(--muted)">'+(a.phone||"")+'</span></td>'
+      +'<td><span class="cat-dot" style="background:'+(AF_COR[a.afinidade]||"#888")+'"></span>'+a.afinidade+'</td>'
+      +'<td>'+(a.tem_elite?'<span class="badge dp" style="background:var(--gold-soft);color:var(--gold)">A · ELITE</span>':'<span class="badge rb">B</span>')+'</td>'
+      +'<td style="text-align:left;max-width:300px;overflow:hidden;text-overflow:ellipsis" title="'+(a.produtos||"")+'">'+(a.produtos||"—")+'</td>'
+      +'<td><b style="color:var(--ink)">'+fmtBRL.format(a.ltv_liquido||0)+'</b></td></tr>').join("")
+    +'</tbody></table>';
+  document.getElementById("pos-tbl").querySelectorAll("tr[data-ak]").forEach(tr=>tr.addEventListener("click",()=>openAluno(tr.dataset.ak)));
+}
+
 function aluFiltered(){
   const all=RAW.areas.alunos.alunos||[];
   const base= state.aluFiltro==="multi"? all.filter(a=>a.n_produtos>=2)
