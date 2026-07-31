@@ -215,6 +215,8 @@ h2.sec{font-family:var(--num);font-weight:700;font-size:18px;letter-spacing:.18e
 'use strict';
 /* ================= CONFIG ================= */
 const API = 'https://dqpxugdhlgafvddavzzp.supabase.co/functions/v1/dashboard-app';
+/* thumbnails da Meta passam pelo proxy (redes corporativas bloqueiam o fbcdn direto) */
+const THUMB_PROXY = 'https://dqpxugdhlgafvddavzzp.supabase.co/functions/v1/thumb-proxy';
 const FETCH_MS = 5*60*1000;
 const qs = new URLSearchParams(location.search);
 const KEY  = qs.get('k') || '';
@@ -666,7 +668,7 @@ function renderEvento(fid){
     <div class="vwrap"><table class="vtable">
       <tr><th></th><th>Anúncio</th><th>Página</th><th>Gasto</th><th>Compras</th><th>CPA</th><th>Cliques</th><th>CTR</th></tr>
       ${criasOrd.slice(0,10).map(c=>`<tr>
-        <td>${c.thumbnail_url?`<img class="cthumb" src="${esc(c.thumbnail_url)}" loading="lazy" alt="">`:''}</td>
+        <td>${c.thumbnail_url?`<img class="cthumb" src="${THUMB_PROXY}?k=${encodeURIComponent(KEY)}&u=${encodeURIComponent(c.thumbnail_url)}" loading="lazy" alt="">`:''}</td>
         <td>${esc(c.ad_name||c.ad_id)}${topCompras&&c.compras===topCompras?'<span class="vtag top">mais compras</span>':''}</td>
         <td>${varLink(c.variant)}</td>
         <td>${fmtRk(c.gasto)}</td>
