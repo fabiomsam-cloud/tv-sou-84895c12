@@ -589,6 +589,26 @@ function renderEvento(fid){
   ]).map(kpiHTML).join('');
 
   const feed = (DATA.atividades||[]).filter(a=>a.tipo==='ingresso' && (a.funnel_id ? a.funnel_id===ev.funnel_id : a.contest_code===ev.contest_code)).slice(0,12);
+  /* tiers (ex.: Básico × VIP) — só aparece quando o funil tem metadata.tiers.
+     Pesquisa por tier depende do form_id configurado no metadata do funil. */
+  const tiers = (DATA.evento_tiers||[]).filter(x=>String(x.funnel_id)===String(ev.funnel_id)).sort((a,b)=>(a.preco||0)-(b.preco||0));
+  const tierHTML = tiers.length ? `<div class="card"><h3>🎫 Por tipo de ingresso · hoje e acumulado</h3>
+    <div class="vwrap"><table class="vtable">
+      <tr><th>Tipo</th><th>Ingr. hoje</th><th>Ingr. acum</th><th>Arrecadado hoje</th><th>Arrecadado acum</th><th>Grupo hoje</th><th>Grupo acum</th><th>Pesquisa hoje</th><th>Pesquisa acum</th></tr>
+      ${tiers.map(x=>`<tr>
+        <td>${esc(x.tier_label||x.tier)}${x.preco?` <span class="vtag">${fmtR(x.preco)}</span>`:''}</td>
+        <td>${fmtI(x.ing_hoje)}</td>
+        <td class="good">${fmtI(x.ing_acum)}</td>
+        <td>${fmtR(x.arrecadado_hoje)}</td>
+        <td>${fmtRk(x.arrecadado_acum)}</td>
+        <td>${fmtI(x.grupo_hoje)}</td>
+        <td>${fmtI(x.grupo_acum)}</td>
+        <td>${fmtI(x.pesquisa_hoje)}</td>
+        <td>${fmtI(x.pesquisa_acum)}</td>
+      </tr>`).join('')}
+    </table></div>
+    <div class="cpa-note">ℹ Divisão por valor pago (Hubla) e por campanha do Sendflow. Pesquisa por tipo passa a contar quando o form da pesquisa de cada ingresso estiver vinculado ao funil.</div>
+  </div>` : '';
   /* páginas/variantes: tráfego Meta por página (vendas por página não são
      rastreáveis — UTM não chega no checkout; ranking pelo lado do tráfego) */
   const VAR_NOME = v => v==='quizz' ? 'Quiz' : (/^pv\d+$/.test(v) ? 'Página '+v.slice(2) : v);
@@ -644,6 +664,7 @@ function renderEvento(fid){
       <div class="sub">Evento ao vivo · o retorno completo vem na ascensão ao Elite após o webinário</div></div>
     ${filtroHTML()}
     <div class="kgrid">${kpis}</div>
+    ${tierHTML}
     <div class="card"><h3>Ingressos dia a dia · ${r?'no período':'todo o período'}</h3>
       <div class="chart-scroll">${chartSVG(rows.map(d=>({dia:d.dia,valor:d.vendas||0})),'#ff8a3d','#ffab6b','#140b09')}</div></div>
     <div class="card"><h3>🎯 CPA por ingresso dia a dia · dias fechados ${tFech.cpa!=null?'· médio '+fmtR(tFech.cpa):''}</h3>
