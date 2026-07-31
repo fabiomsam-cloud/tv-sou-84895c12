@@ -165,6 +165,9 @@ h2.sec{font-family:var(--num);font-weight:700;font-size:18px;letter-spacing:.18e
 .vtable td:first-child{text-align:left;font-family:var(--body);font-weight:700;font-size:14px}
 .vtable tr:last-child td{border-bottom:none}
 .vtag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.08em;padding:2px 7px;border-radius:6px;margin-left:6px;vertical-align:middle}
+.pglink{color:var(--cyan);text-decoration:none;border-bottom:1px dotted var(--cyan)}
+.pglink:hover{opacity:.8}
+.cthumb{width:42px;height:42px;object-fit:cover;border-radius:8px;display:block;border:1px solid var(--line)}
 .vtag.top{color:var(--green);background:rgba(46,229,107,.12);border:1px solid rgba(46,229,107,.35)}
 .vtag.bump{color:var(--cyan);background:rgba(39,211,245,.12);border:1px solid rgba(39,211,245,.35)}
 
@@ -612,6 +615,11 @@ function renderEvento(fid){
   /* páginas/variantes: tráfego Meta por página (vendas por página não são
      rastreáveis — UTM não chega no checkout; ranking pelo lado do tráfego) */
   const VAR_NOME = v => v==='quizz' ? 'Quiz' : (/^pv\d+$/.test(v) ? 'Página '+v.slice(2) : v);
+  /* link de destino por página (vem dos criativos Meta — anúncio com maior gasto define) */
+  const crias = (DATA.criativos||[]).filter(c=>String(c.funnel_id)===String(ev.funnel_id));
+  const linkByVar = {};
+  [...crias].sort((a,b)=>(b.gasto||0)-(a.gasto||0)).forEach(c=>{ if(c.link_url && !linkByVar[c.variant]) linkByVar[c.variant]=c.link_url; });
+  const varLink = v => linkByVar[v] ? `<a class="pglink" href="${esc(linkByVar[v])}" target="_blank" rel="noopener">${esc(VAR_NOME(v))} ↗</a>` : esc(VAR_NOME(v));
   const varAgg = {};
   (DATA.variantes||[]).filter(v=>String(v.funnel_id)===String(ev.funnel_id) && (!r || (v.dia>=r.ini && v.dia<=r.fim)))
     .forEach(v=>{
@@ -633,7 +641,7 @@ function renderEvento(fid){
     <div class="vwrap"><table class="vtable">
       <tr><th>Página</th><th>Gasto</th><th>% verba</th>${temCompras?'<th>Compras</th><th>CPA</th><th>Conv.</th>':''}<th>Impressões</th><th>Cliques</th><th>CTR</th><th>CPC</th></tr>
       ${vars.map(v=>`<tr>
-        <td>${esc(VAR_NOME(v.variant))}${temCompras&&v.compras===maisCompras&&v.compras>0?'<span class="vtag top">mais compras</span>':''}${!temCompras&&v.ctr===bestCtr?'<span class="vtag top">melhor CTR</span>':''}${!temCompras&&v.cpc===bestCpc?'<span class="vtag top">menor CPC</span>':''}${temCompras&&v.cpaMeta===bestCpaMeta&&v.cpaMeta!=null?'<span class="vtag top">melhor CPA</span>':''}</td>
+        <td>${varLink(v.variant)}${temCompras&&v.compras===maisCompras&&v.compras>0?'<span class="vtag top">mais compras</span>':''}${!temCompras&&v.ctr===bestCtr?'<span class="vtag top">melhor CTR</span>':''}${!temCompras&&v.cpc===bestCpc?'<span class="vtag top">menor CPC</span>':''}${temCompras&&v.cpaMeta===bestCpaMeta&&v.cpaMeta!=null?'<span class="vtag top">melhor CPA</span>':''}</td>
         <td>${fmtRk(v.gasto)}</td>
         <td>${totGasto>0?pct(v.gasto,totGasto):'—'}</td>
         ${temCompras?`
@@ -649,6 +657,26 @@ function renderEvento(fid){
     <div class="cpa-note">${temCompras
       ?'ℹ Compras e CPA segundo a atribuição da Meta (pixel) — bom para comparar páginas entre si; o total oficial de vendas é o da Hubla.'
       :'ℹ Ranking pelo tráfego (Meta). As compras por página aparecem aqui automaticamente assim que a carga do Meta passar a enviar o campo de conversões (ajuste no fluxo n8n).'}</div>
+  </div>` : '';
+
+  /* criativos: métricas por anúncio (Meta) — sempre todo o período; atribuição do pixel */
+  const criasOrd = [...crias].sort((a,b)=>((b.compras||0)-(a.compras||0)) || ((b.gasto||0)-(a.gasto||0)));
+  const topCompras = criasOrd.length && (criasOrd[0].compras||0)>0 ? criasOrd[0].compras : null;
+  const criaHTML = crias.length ? `<div class="card"><h3>🎨 Criativos · conversão (Meta) · todo o período</h3>
+    <div class="vwrap"><table class="vtable">
+      <tr><th></th><th>Anúncio</th><th>Página</th><th>Gasto</th><th>Compras</th><th>CPA</th><th>Cliques</th><th>CTR</th></tr>
+      ${criasOrd.slice(0,10).map(c=>`<tr>
+        <td>${c.thumbnail_url?`<img class="cthumb" src="${esc(c.thumbnail_url)}" loading="lazy" alt="">`:''}</td>
+        <td>${esc(c.ad_name||c.ad_id)}${topCompras&&c.compras===topCompras?'<span class="vtag top">mais compras</span>':''}</td>
+        <td>${varLink(c.variant)}</td>
+        <td>${fmtRk(c.gasto)}</td>
+        <td class="${topCompras&&c.compras===topCompras?'good':''}">${fmtI(c.compras)}</td>
+        <td>${c.cpa!=null?fmtR(c.cpa):'—'}</td>
+        <td>${fmtI(c.cliques)}</td>
+        <td>${c.ctr!=null?(+c.ctr).toLocaleString('pt-BR',{maximumFractionDigits:2})+'%':'—'}</td>
+      </tr>`).join('')}
+    </table></div>
+    <div class="cpa-note">ℹ Compras segundo a atribuição da Meta (pixel), por anúncio — bom para comparar criativos entre si; o total oficial de vendas é o da Hubla. Atualiza todo dia às 08h10.</div>
   </div>` : '';
 
   // CPA: só dias FECHADOS entram na linha — o gasto do Meta chega em cargas
@@ -671,6 +699,7 @@ function renderEvento(fid){
       <div class="chart-scroll">${chartSVG(cpaRows,'#ffb020','#ffcc4d','#140b09',v=>'R$'+Math.round(v))}</div>
       ${cpaHj?`<div class="cpa-note">⚠ Hoje (parcial): ${fmtR(cpaHj.valor)} — o gasto do Meta é carregado em sincronizações periódicas, então o CPA de hoje ainda vai subir. O dia entra na linha quando fechar.</div>`:''}</div>
     ${varHTML}
+    ${criaHTML}
     ${r?'':`<div><h2 class="sec">📅 Semana atual</h2><div class="wgrid">
       <div class="wcard" style="--ac:var(--orange)"><span class="k">Ingressos</span><span class="v" style="color:var(--orange)">${fmtI(evw.ingressos_semana)}</span></div>
       <div class="wcard" style="--ac:var(--green)"><span class="k">Arrecadado</span><span class="v" style="color:var(--green)">${fmtRk(evw.arrecadado_semana)}</span></div>
