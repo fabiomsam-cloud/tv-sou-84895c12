@@ -242,6 +242,13 @@ function tempoRel(iso){
   if(s<86400) return 'há '+Math.round(s/3600)+' h';
   return 'há '+Math.round(s/86400)+' d';
 }
+/* horário (BRT) da última carga do investimento Meta — o gasto no Gerenciador é
+   tempo real; aqui é o snapshot da carga horária, e o card mostra de quando é. */
+function invSync(){
+  const iso = (typeof DATA!=='undefined' && DATA) ? DATA.invest_updated_at : null;
+  if(!iso) return null;
+  return new Date(iso).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'});
+}
 
 /* ================= período ================= */
 let PER = {tipo:'tudo', ini:null, fim:null};
@@ -441,7 +448,7 @@ function renderPerpetuo(code){
   const kpis = (r ? [
     {ico:'🛒', lbl:'Matrículas',  hoje:fmtI(t.vendas), tag:'no período', acum:mDia(t.vendas), aLbl:'média/dia', ac:'var(--blue)', col:'var(--blue)'},
     {ico:'💰', lbl:'Arrecadado',  hoje:fmtRk(t.arrecadado), tag:'no período', acum:fmtRk(t.arrecadado/diasN), aLbl:'média/dia', ac:'var(--green)', col:'var(--green)'},
-    {ico:'📊', lbl:'Investido',   hoje:fmtRk(t.invest), tag:'no período', acum:fmtRk(t.invest/diasN), aLbl:'média/dia', ac:'var(--amber)', col:'var(--amber)'},
+    {ico:'📊', lbl:'Investido',   hoje:fmtRk(t.invest), tag:'no período'+(invSync()?' · 📡 '+invSync():''), acum:fmtRk(t.invest/diasN), aLbl:'média/dia', ac:'var(--amber)', col:'var(--amber)'},
     {ico:'📈', lbl:'ROI',         hoje:fmtX(t.roi), tag:'com elite', acum:fmtX(t.roiLt), aLbl:'só LT', ac:roiCol(t.roi), col:roiCol(t.roi)},
     {ico:'👥', lbl:'Grupo',       hoje:fmtI(t.grupo), tag:'no período', acum:mDia(t.grupo), aLbl:'média/dia', ac:'var(--cyan)', col:'var(--cyan)'},
     {ico:'📋', lbl:'Pesquisa',    hoje:fmtI(t.pesquisa), tag:'no período', acum:mDia(t.pesquisa), aLbl:'média/dia', ac:'var(--violet)', col:'var(--violet)'},
@@ -450,7 +457,7 @@ function renderPerpetuo(code){
   ] : [
     {ico:'🛒', lbl:'Matrículas',  hoje:fmtI(k.lt_hoje), acum:fmtI(k.lt_acum), ac:'var(--blue)', col:'var(--blue)'},
     {ico:'💰', lbl:'Arrecadado',  hoje:fmtR(k.arrecadado_hoje), acum:fmtRk(k.arrecadado_acum), ac:'var(--green)', col:'var(--green)'},
-    {ico:'📊', lbl:'Investido',   hoje:fmtR(k.invest_hoje), acum:fmtRk(k.invest_acum), ac:'var(--amber)', col:'var(--amber)'},
+    {ico:'📊', lbl:'Investido',   hoje:fmtR(k.invest_hoje), tag:'hoje'+(invSync()?' · 📡 '+invSync():''), acum:fmtRk(k.invest_acum), ac:'var(--amber)', col:'var(--amber)'},
     {ico:'📈', lbl:'ROI',         hoje:fmtX(roiT), tag:'com elite', acum:fmtX(roiL), aLbl:'só LT', ac:roiCol(roiT), col:roiCol(roiT)},
     {ico:'👥', lbl:'Grupo',       hoje:fmtI(k.grupo_hoje), acum:fmtI(k.grupo_acum), ac:'var(--cyan)', col:'var(--cyan)'},
     {ico:'📋', lbl:'Pesquisa',    hoje:fmtI(k.pesquisa_hoje), acum:fmtI(k.pesquisa_acum), ac:'var(--violet)', col:'var(--violet)'},
@@ -574,7 +581,7 @@ function renderEvento(fid){
   const kpis = (r ? [
     {ico:'🎟', lbl:'Ingressos',  hoje:fmtI(t.vendas), tag:'no período', acum:mDia(t.vendas), aLbl:'média/dia', ac:'var(--orange)', col:'var(--orange)'},
     {ico:'💰', lbl:'Arrecadado', hoje:fmtRk(t.arrecadado), tag:'no período', acum:fmtRk(t.arrecadado/diasN), aLbl:'média/dia', ac:'var(--green)', col:'var(--green)'},
-    {ico:'📊', lbl:'Investido',  hoje:fmtRk(t.invest), tag:'no período', acum:fmtRk(t.invest/diasN), aLbl:'média/dia', ac:'var(--amber)', col:'var(--amber)'},
+    {ico:'📊', lbl:'Investido',  hoje:fmtRk(t.invest), tag:'no período'+(invSync()?' · 📡 '+invSync():''), acum:fmtRk(t.invest/diasN), aLbl:'média/dia', ac:'var(--amber)', col:'var(--amber)'},
     {ico:'🎯', lbl:'CPA ingresso', hoje:t.cpa!=null?fmtR(t.cpa):'—', tag:'no período', acum:fmtI(t.vendas), aLbl:'vendas', ac:'var(--amber)', col:'var(--amber)'},
     {ico:'📈', lbl:'ROI',        hoje:fmtX(t.roi), tag:'com elite', acum:fmtX(t.roiLt), aLbl:'só ingr.', ac:roiCol(t.roi), col:roiCol(t.roi)},
     {ico:'👥', lbl:'Grupo',      hoje:fmtI(t.grupo), tag:'no período', acum:mDia(t.grupo), aLbl:'média/dia', ac:'var(--cyan)', col:'var(--cyan)'},
@@ -584,7 +591,7 @@ function renderEvento(fid){
   ] : [
     {ico:'🎟', lbl:'Ingressos',  hoje:fmtI(ev.lt_hoje), acum:fmtI(ev.lt_acum), ac:'var(--orange)', col:'var(--orange)'},
     {ico:'💰', lbl:'Arrecadado', hoje:fmtR(ev.arrecadado_hoje), acum:fmtRk(ev.arrecadado_acum), ac:'var(--green)', col:'var(--green)'},
-    {ico:'📊', lbl:'Investido',  hoje:fmtR(ev.invest_hoje), acum:fmtRk(ev.invest_acum), ac:'var(--amber)', col:'var(--amber)'},
+    {ico:'📊', lbl:'Investido',  hoje:fmtR(ev.invest_hoje), tag:'hoje'+(invSync()?' · 📡 '+invSync():''), acum:fmtRk(ev.invest_acum), ac:'var(--amber)', col:'var(--amber)'},
     {ico:'🎯', lbl:'CPA ingresso', hoje:cpaHoje!=null?fmtR(cpaHoje):'—', tag:'hoje (parcial)', acum:cpaAcum!=null?fmtR(cpaAcum):'—', ac:'var(--amber)', col:'var(--amber)'},
     {ico:'📈', lbl:'ROI',        hoje:fmtX(roiT), tag:'com elite', acum:fmtX(roiL), aLbl:'só ingr.', ac:roiCol(roiT), col:roiCol(roiT)},
     {ico:'👥', lbl:'Grupo',      hoje:fmtI(ev.grupo_hoje), acum:fmtI(ev.grupo_acum), ac:'var(--cyan)', col:'var(--cyan)'},
