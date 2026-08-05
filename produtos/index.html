@@ -1312,8 +1312,9 @@ async function blinForm(c){
     const pats=document.getElementById("bf-pats").value.split(",").map(s=>s.trim()).filter(Boolean);
     if(!nome||!tpl||!agt||!codes.length||!pats.length){ alert("Preencha nome, template, agente, ao menos 1 produto e os padrões de compra."); return; }
     try{
+      const tplBody=(anneTpls.find(t=>(t.name||t)===tpl)||{}).body||"";
       const r=await postApi({campanha_blindado:{nome, template_name:tpl, agent_slug:agt, product_codes:codes,
-        buy_patterns:pats, delay_min:c?.delay_min||10, rearm_dias:c?.rearm_dias||7,
+        buy_patterns:pats, template_body:tplBody, delay_min:c?.delay_min||10, rearm_dias:c?.rearm_dias||7,
         ativa:document.getElementById("bf-ativa").checked}});
       d.campanhas=(d.campanhas||[]).filter(x=>x.nome!==nome).concat([r.campanha]).sort((a,b)=>a.nome.localeCompare(b.nome));
       f.style.display="none"; renderCampanhasBlin();
